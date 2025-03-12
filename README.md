@@ -157,6 +157,12 @@ curl -X POST http://127.0.0.1:5007/api/event/create \
 - 技术讨论：每周直播分享
 - 项目动态：实时更新
 
+
+
+DeepSOC群助手微信二维码
+
+![DeepSOC群助手微信二维码](app/static/images/deepsoc-wechat-assistant.jpg)
+
 ## 📄 开源协议
 
 本项目采用 [MIT](LICENSE) 协议开源。
