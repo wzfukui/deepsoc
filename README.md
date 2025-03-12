@@ -123,23 +123,16 @@ python main.py -role _expert
 
 ![](app/static/images/deepsoc-warroom.jpg)
 
-### API创建事件
+### 3. curl创建安全事件
 
-1. 创建安全事件
-```python
-event = {
-    "type": "security_alert",
-    "source": "SIEM",
-    "description": "检测到可疑的暴力破解尝试",
-    "severity": "high"
-}
-deepsoc.create_event(event)
-```
-
-2. 查看处理状态
-```python
-status = deepsoc.get_event_status(event_id)
-print(status)
+```bash
+curl -X POST http://127.0.0.1:5007/api/event/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "SIEM告警外部IP 66.240.205.34正在对邮件网关服务器进行暴力破解攻击", 
+    "context": "邮件网关服务器的内网IP地址192.168.22.251", 
+    "severity": "medium"
+  }'
 ```
 
 ## 🤝 参与贡献
