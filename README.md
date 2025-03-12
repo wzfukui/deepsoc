@@ -161,7 +161,7 @@ curl -X POST http://127.0.0.1:5007/api/event/create \
 
 DeepSOC群助手微信二维码
 
-![DeepSOC群助手微信二维码](app/static/images/deepsoc-wechat-assistant.jpg)
+<img src="app/static/images/deepsoc-wechat-assistant.jpg" width="30%" alt="DeepSOC群助手微信二维码">
 
 ## 📄 开源协议
 
