@@ -131,7 +131,8 @@ curl -X POST http://127.0.0.1:5007/api/event/create \
   -d '{
     "message": "SIEM告警外部IP 66.240.205.34正在对邮件网关服务器进行暴力破解攻击", 
     "context": "邮件网关服务器的内网IP地址192.168.22.251", 
-    "severity": "medium"
+    "severity": "medium",
+    "source": "SIEM"
   }'
 ```
 
