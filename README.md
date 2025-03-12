@@ -123,6 +123,11 @@ python main.py -role _expert
 
 ![](app/static/images/deepsoc-warroom.jpg)
 
+### 查看消息原始数据结构
+
+![](app/static/images/deepsoc-warroom-message-structure.jpg)
+
+
 ### 3. curl创建安全事件
 
 ```bash
