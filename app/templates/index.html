@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepSOC - AI驱动的安全运营中心</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="mb-4">
+            <h1 class="text-center">DeepSOC</h1>
+            <p class="text-center text-muted">AI驱动的安全运营中心</p>
+        </header>
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5>创建安全事件</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="event-form">
+                            <div class="mb-3">
+                                <label for="event-name" class="form-label">事件名称 (可选)</label>
+                                <input type="text" class="form-control" id="event-name" placeholder="如未提供，系统将自动生成">
+                            </div>
+                            <div class="mb-3">
+                                <label for="event-message" class="form-label">事件描述 *</label>
+                                <textarea class="form-control" id="event-message" rows="4" required placeholder="例如：检测到外部IP 66.240.205.34 正在暴力破解邮件网关服务器，对应内网IP地址是192.168.22.251"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="event-context" class="form-label">事件上下文 (可选)</label>
+                                <textarea class="form-control" id="event-context" rows="2" placeholder="提供更多背景信息"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="event-severity" class="form-label">严重程度</label>
+                                <select class="form-select" id="event-severity">
+                                    <option value="low">低</option>
+                                    <option value="medium" selected>中</option>
+                                    <option value="high">高</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="event-source" class="form-label">事件来源</label>
+                                <input type="text" class="form-control" id="event-source" value="manual" placeholder="例如：SIEM, EDR, 人工报告">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">创建事件</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5>安全事件列表</h5>
+                        <button id="refresh-events" class="btn btn-sm btn-outline-secondary">刷新</button>
+                    </div>
+                    <div class="card-body">
+                        <div id="events-container">
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">加载中...</span>
+                                </div>
+                                <p class="mt-2">加载事件列表...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast容器 -->
+    <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/index.js"></script>
+</body>
+</html> 

@@ -1,0 +1,48 @@
+# 环境变量和虚拟环境
+.env
+venv/
+env/
+ENV/
+
+# Python缓存文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+instance/
+
+# 日志文件
+*.log
+
+# 系统文件
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 其他
+.coverage
+htmlcov/
+.pytest_cache/
