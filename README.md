@@ -23,6 +23,10 @@
 
 DeepSOC 是一个革命性的安全运营解决方案，它将先进的 AI 技术与传统的安全运营工具完美结合，通过多智能体（Multi-Agent）架构，DeepSOC 能够自动化处理安全事件，显著提升安全运营效率。
 
+DeepSOC产品工作逻辑图
+
+![DeepSOC产品工作逻辑图](app/static/images/deepsoc-work-logic.jpg)
+
 ### ✨ 核心特性
 
 - 🤖 **智能多Agent架构**
@@ -56,7 +60,7 @@ DeepSOC 是一个革命性的安全运营解决方案，它将先进的 AI 技�
 
 - Python 3.8+
 - SQLite（试验阶段方便部署测试，成熟之后随时切换）
-
+- 自动化系统（支持SOAR编排自动化系统，推荐[OctoMation社区免费版](https://github.com/flagify-com/OctoMation)）
 
 
 ### 安装步骤
