@@ -43,7 +43,8 @@ class SOARClient:
                 url,
                 json=payload,
                 headers=self.headers,
-                timeout=self.timeout
+                timeout=self.timeout,
+                verify=False
             )
             response.raise_for_status()
             result = response.json().get('result')
@@ -64,7 +65,8 @@ class SOARClient:
             response = requests.get(
                 url,
                 headers=self.headers,
-                timeout=self.timeout
+                timeout=self.timeout,
+                verify=False
             )
             response.raise_for_status()
             return response.json().get('result')
@@ -85,7 +87,8 @@ class SOARClient:
                 url,
                 headers=self.headers,
                 params=params,
-                timeout=self.timeout
+                timeout=self.timeout,
+                verify=False
             )
             response.raise_for_status()
             return response.json().get('result')
