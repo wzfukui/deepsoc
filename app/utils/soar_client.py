@@ -16,6 +16,7 @@ class SOARClient:
         self.timeout = config.SOAR_API_TIMEOUT
         self.retry_count = config.SOAR_RETRY_COUNT
         self.retry_delay = config.SOAR_RETRY_DELAY
+        self.verify_ssl = config.SOAR_VERIFY_SSL
 
     def execute_playbook(self, playbook_id: int, params: Dict[str, Any]) -> Optional[str]:
         """
@@ -44,7 +45,7 @@ class SOARClient:
                 json=payload,
                 headers=self.headers,
                 timeout=self.timeout,
-                verify=False
+                verify=self.verify_ssl
             )
             response.raise_for_status()
             result = response.json().get('result')
@@ -66,7 +67,7 @@ class SOARClient:
                 url,
                 headers=self.headers,
                 timeout=self.timeout,
-                verify=False
+                verify=self.verify_ssl
             )
             response.raise_for_status()
             return response.json().get('result')
@@ -88,7 +89,7 @@ class SOARClient:
                 headers=self.headers,
                 params=params,
                 timeout=self.timeout,
-                verify=False
+                verify=self.verify_ssl
             )
             response.raise_for_status()
             return response.json().get('result')

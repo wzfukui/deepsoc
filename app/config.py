@@ -14,6 +14,7 @@ config.SOAR_API_TOKEN = os.getenv('SOAR_API_TOKEN', 'your_soar_api_token')
 config.SOAR_API_TIMEOUT = int(os.getenv('SOAR_API_TIMEOUT', 30))
 config.SOAR_RETRY_COUNT = int(os.getenv('SOAR_RETRY_COUNT', 3))
 config.SOAR_RETRY_DELAY = int(os.getenv('SOAR_RETRY_DELAY', 5))
+config.SOAR_VERIFY_SSL = os.getenv('SOAR_VERIFY_SSL', 'True').lower() == 'true'
 
 # LLM配置
 config.LLM_BASE_URL = os.getenv('LLM_BASE_URL', 'https://dashscope.aliyuncs.com/compatible-mode/v1')
