@@ -61,6 +61,7 @@ DeepSOC产品工作逻辑图
 - Python 3.8+
 - SQLite（试验阶段方便部署测试，成熟之后随时切换）
 - 自动化系统（支持SOAR编排自动化系统，推荐[OctoMation社区免费版](https://github.com/flagify-com/OctoMation)）
+  - [剧本配置信息](docs/soar-config-help.md)
 
 
 ### 安装步骤
