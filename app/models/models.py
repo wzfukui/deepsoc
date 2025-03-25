@@ -2,8 +2,41 @@ from datetime import datetime
 import uuid
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String, Text, JSON, DateTime, func
+from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
+
+class User(db.Model):
+    """用户表"""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = db.Column(db.String(64), nullable=False, unique=True)
+    email = db.Column(db.String(120), nullable=False, unique=True)
+    password_hash = db.Column(db.String(256), nullable=False)
+    role = db.Column(db.String(32), default='user')  # admin, user
+    last_login_at = db.Column(db.DateTime)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+        
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'email': self.email,
+            'role': self.role,
+            'last_login_at': self.last_login_at.isoformat() if self.last_login_at else None,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
 
 class Event(db.Model):
     """安全事件表"""
