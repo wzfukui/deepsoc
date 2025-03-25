@@ -1,12 +1,14 @@
 import uuid
 from datetime import datetime
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import db, Event
 from app.utils.message_utils import create_standard_message
 
 event_bp = Blueprint('event', __name__)
 
 @event_bp.route('/create', methods=['POST'])
+@jwt_required()
 def create_event():
     """创建新的安全事件"""
     data = request.json
@@ -55,6 +57,7 @@ def create_event():
     })
 
 @event_bp.route('/list', methods=['GET'])
+@jwt_required()
 def list_events():
     """获取事件列表"""
     events = Event.query.order_by(Event.created_at.desc()).all()
@@ -64,6 +67,7 @@ def list_events():
     })
 
 @event_bp.route('/<event_id>', methods=['GET'])
+@jwt_required()
 def get_event(event_id):
     """获取单个事件详情"""
     event = Event.query.filter_by(event_id=event_id).first()
@@ -79,6 +83,7 @@ def get_event(event_id):
     })
 
 @event_bp.route('/<event_id>/messages', methods=['GET'])
+@jwt_required()
 def get_event_messages(event_id):
     """获取事件相关的所有消息"""
     from app.models import Message
@@ -109,6 +114,7 @@ def get_event_messages(event_id):
     })
 
 @event_bp.route('/<event_id>/tasks', methods=['GET'])
+@jwt_required()
 def get_event_tasks(event_id):
     """获取事件相关的所有任务"""
     from app.models import Task
@@ -120,6 +126,7 @@ def get_event_tasks(event_id):
     })
 
 @event_bp.route('/<event_id>/stats', methods=['GET'])
+@jwt_required()
 def get_event_stats(event_id):
     """获取事件相关的统计信息"""
     from app.models import Task, Action, Command
@@ -143,6 +150,7 @@ def get_event_stats(event_id):
     })
 
 @event_bp.route('/<event_id>/summaries', methods=['GET'])
+@jwt_required()
 def get_event_summaries(event_id):
     """获取事件相关的所有总结"""
     from app.models import Summary
@@ -154,6 +162,7 @@ def get_event_summaries(event_id):
     })
 
 @event_bp.route('/send_message/<event_id>', methods=['POST'])
+@jwt_required()
 def send_message(event_id):
     """发送消息到事件"""
     from app.models import Message
@@ -195,9 +204,10 @@ def send_message(event_id):
         'status': 'success',
         'message': '消息发送成功',
         'data': message.to_dict()
-    }) 
+    })
 
 @event_bp.route('/<event_id>/executions', methods=['GET'])
+@jwt_required()
 def get_event_executions(event_id):
     """获取事件相关的执行任务"""
     from app.models import Execution, Command

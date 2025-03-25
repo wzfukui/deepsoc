@@ -9,14 +9,65 @@
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <img src="/static/images/logo/logo.png" alt="DeepSOC Logo" height="30" class="me-2">
+                DeepSOC
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/">首页</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <!-- 登录前显示 -->
+                    <li class="nav-item" id="login-nav-item">
+                        <a class="nav-link" href="/login">登录</a>
+                    </li>
+                    
+                    <!-- 登录后显示 -->
+                    <li class="nav-item dropdown d-none" id="user-nav-item">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <span id="user-info">用户</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="#" id="logout-btn">退出登录</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
     <div class="container">
         <header class="mb-4">
-            <h1 class="text-center">DeepSOC</h1>
-            <p class="text-center text-muted">AI驱动的安全运营中心</p>
+            <div class="text-center">
+                <h1>DeepSOC</h1>
+                <p class="text-muted">AI驱动的安全运营中心</p>
+            </div>
         </header>
 
         <div class="row">
             <div class="col-md-4">
+                <!-- 登录前显示 -->
+                <div class="card mb-4 d-none" id="login-prompt">
+                    <div class="card-header">
+                        <h5>创建安全事件</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-center">请先登录后使用完整功能</p>
+                        <div class="d-grid gap-2">
+                            <a href="/login" class="btn btn-primary">登录</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 登录后显示 -->
                 <div class="card mb-4">
                     <div class="card-header">
                         <h5>创建安全事件</h5>

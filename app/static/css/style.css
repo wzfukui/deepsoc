@@ -135,4 +135,23 @@ body {
     white-space: pre-wrap;
     font-size: 0.875rem;
     margin-top: 0.5rem;
+}
+
+/* DeepSOC 自定义样式 */
+
+/* Logo 样式 */
+.logo-img {
+    transition: all 0.3s ease;
+}
+
+.logo-img:hover {
+    transform: scale(1.05);
+}
+
+.navbar-brand img {
+    transition: all 0.3s ease;
+}
+
+.navbar-brand:hover img {
+    transform: rotate(5deg);
 } 

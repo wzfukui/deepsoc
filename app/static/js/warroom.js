@@ -24,6 +24,7 @@ let lastRefreshTime = 0; // 上次刷新时间
 let isRefreshing = false; // 是否正在刷新
 let waitingExecutions = []; // 等待处理的执行任务列表
 let currentExecution = null; // 当前正在处理的执行任务
+let messagesData = []; // 存储所有消息数据的数组
 
 // WebSocket连接
 const socket = io({
@@ -86,7 +87,73 @@ const elements = {
 const messagesMap = new Map();
 
 // 页面加载完成后执行
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', function() {
+    // 检查用户是否已登录
+    checkAuth();
+    
+    // 初始化事件
+    initWarRoom();
+});
+
+// 检查用户是否已登录
+function checkAuth() {
+    const token = localStorage.getItem('access_token') || getCookie('access_token');
+    
+    if (!token) {
+        // 未登录，显示提示并重定向
+        showLoginRequired();
+        return;
+    }
+    
+    // 验证token有效性
+    fetch('/api/auth/check-auth', {
+        headers: getAuthHeaders(),
+        credentials: 'include'  // 包含凭证
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.authenticated) {
+            // token无效，显示提示并重定向
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user_info');
+            document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            showLoginRequired();
+        }
+    })
+    .catch(error => {
+        console.error('验证认证状态错误:', error);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('user_info');
+        document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        showLoginRequired();
+    });
+}
+
+// 显示登录提示并重定向
+function showLoginRequired() {
+    const warRoomContainer = document.getElementById('war-room-container');
+    
+    if (warRoomContainer) {
+        warRoomContainer.innerHTML = `
+            <div class="text-center py-5">
+                <div class="alert alert-warning" role="alert">
+                    <h4 class="alert-heading">需要登录</h4>
+                    <p>您需要登录后才能访问作战室</p>
+                    <hr>
+                    <p class="mb-0">即将跳转到登录页面...</p>
+                </div>
+            </div>
+        `;
+    }
+    
+    // 延迟跳转到登录页
+    setTimeout(() => {
+        window.location.href = '/login';
+    }, 2000);
+}
+
+// 初始化作战室
+function initWarRoom() {
     console.log('%c[页面] 页面加载完成，初始化作战室...', 'background: #E91E63; color: white; padding: 2px 5px; border-radius: 3px;');
     
     // 初始化事件监听器
@@ -122,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     
     console.log('%c[页面] 作战室初始化完成', 'color: #E91E63; font-weight: bold;');
-});
+}
 
 // 处理页面可见性变化
 function handleVisibilityChange() {
@@ -166,49 +233,42 @@ function stopAutoRefresh() {
 
 // 刷新数据
 async function refreshData(force = false) {
-    // 如果正在刷新，或者距离上次刷新时间不足5秒且不是强制刷新，则跳过
-    if (isRefreshing || (!force && Date.now() - lastRefreshTime < 5000)) {
-        return;
-    }
+    if (isRefreshing && !force) return;
     
-    // 标记正在刷新
     isRefreshing = true;
-    lastRefreshTime = Date.now();
     
     try {
-        console.log(`%c[刷新] 开始刷新数据${force ? ' (强制)' : ''}`, 'background: #FF9800; color: white; padding: 2px 5px; border-radius: 3px;');
+        const eventDetailsResponse = await fetch(`/api/event/${eventId}`, {
+            headers: getAuthHeaders(),
+            credentials: 'include'
+        });
         
-        // 如果WebSocket已连接，优先使用WebSocket
-        if (socket.connected) {
-            console.log('%c[刷新] WebSocket已连接，只通过API获取消息和统计', 'color: #FF9800;');
-            // 只通过API获取消息和统计
-            await Promise.all([
-                fetchEventMessages(),
-                fetchEventStats(),
-                fetchWaitingExecutions() // 添加获取等待执行任务
-            ]);
-        } else {
-            console.log('%c[刷新] WebSocket未连接，通过API获取所有数据', 'color: #FF9800;');
-            // WebSocket未连接，通过API获取所有数据
-            await Promise.all([
-                fetchEventDetails(),
-                fetchEventMessages(),
-                fetchEventStats(),
-                fetchWaitingExecutions() // 添加获取等待执行任务
-            ]);
-            
-            // 尝试重新连接WebSocket
-            if (!socket.connected && !isManuallyDisconnected) {
-                console.log('%c[刷新] 尝试重新连接WebSocket...', 'color: #FF9800;');
-                socket.connect();
-            }
+        if (eventDetailsResponse.status === 401) {
+            // 认证失败，跳转到登录页
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user_info');
+            document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            window.location.href = '/login';
+            return;
         }
         
-        console.log('%c[刷新] 数据刷新完成', 'color: #FF9800;');
+        const eventData = await eventDetailsResponse.json();
+        
+        if (eventData.status === 'success') {
+            displayEventDetails(eventData.data);
+        }
+        
+        // 获取最新消息
+        fetchEventMessages();
+        
+        // 获取执行中任务
+        fetchWaitingExecutions();
+        
+        // 获取统计数据
+        fetchEventStats();
     } catch (error) {
-        console.error('%c[刷新] 刷新数据出错:', 'color: #F44336;', error);
+        console.error('刷新数据错误:', error);
     } finally {
-        // 标记刷新完成
         isRefreshing = false;
     }
 }
@@ -579,46 +639,51 @@ function joinWarroom() {
     }
 }
 
+// 添加认证头的辅助函数
+function getAuthHeaders() {
+    const token = localStorage.getItem('access_token') || getCookie('access_token');
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+    };
+}
+
+// 获取cookie的辅助函数
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+
 // 获取事件详情
 async function fetchEventDetails() {
-    let retryCount = 0;
-    const maxRetries = 3;
-    
-    while (retryCount < maxRetries) {
-        try {
-            updateLoadingState('event-details', true);
-            
-            const response = await fetch(`${API_BASE_URL}/event/${eventId}`, {
-                signal: AbortSignal.timeout(8000) // 8秒超时
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP错误: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                eventData = data.data;
-                displayEventDetails(eventData);
-                return; // 成功获取数据，退出循环
-            } else {
-                throw new Error(data.message || '获取事件详情失败');
-            }
-        } catch (error) {
-            retryCount++;
-            console.error(`获取事件详情出错 (尝试 ${retryCount}/${maxRetries}):`, error);
-            
-            if (retryCount >= maxRetries) {
-                showToast(`获取事件详情失败: ${error.message || '未知错误'}`, 'error');
-            } else {
-                // 指数退避重试
-                const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 5000);
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        } finally {
-            updateLoadingState('event-details', false);
+    try {
+        updateLoadingState('event-details', true);
+        
+        const response = await fetch(`/api/event/${eventId}`, {
+            headers: getAuthHeaders()
+        });
+        
+        if (response.status === 401) {
+            // 认证失败，跳转到登录页
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user_info');
+            window.location.href = '/login';
+            return;
         }
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            displayEventDetails(data.data);
+        } else {
+            console.error('获取事件详情失败:', data.message);
+        }
+    } catch (error) {
+        console.error('获取事件详情错误:', error);
+    } finally {
+        updateLoadingState('event-details', false);
     }
 }
 
@@ -642,112 +707,64 @@ function displayEventDetails(event) {
     elements.currentRound.textContent = event.current_round || 1;
 }
 
-// 获取事件消息
+// 获取事件消息列表
 async function fetchEventMessages() {
-    let retryCount = 0;
-    const maxRetries = 3;
-    
-    while (retryCount < maxRetries) {
-        try {
-            updateLoadingState('messages', true);
-            
-            console.log(`%c[HTTP] 请求消息 last_id=${lastMessageId}`, 'background: #2196F3; color: white; padding: 2px 5px; border-radius: 3px;');
-            
-            const response = await fetch(`${API_BASE_URL}/event/${eventId}/messages?last_id=${lastMessageId}`, {
-                signal: AbortSignal.timeout(8000) // 8秒超时
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP错误: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                let newMessages = 0;
-                
-                console.log(`%c[HTTP] 收到${data.data.length}条消息`, 'color: #2196F3;');
-                
-                data.data.forEach(message => {
-                    if (!displayedMessages.has(message.id)) {
-                        console.log(`%c[HTTP] 添加新消息 ID:${message.id}, 类型:${message.message_type}, 来源:${message.message_from}`, 'color: #2196F3;');
+    try {
+        updateLoadingState('messages', true);
+        
+        // 获取所有消息或从上次ID开始
+        const lastId = messagesData.length > 0 ? Math.max(...messagesData.map(m => m.id)) : 0;
+        
+        const response = await fetch(`/api/event/${eventId}/messages?last_id=${lastId}`, {
+            headers: getAuthHeaders(),
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            // 添加新消息
+            if (data.data.length > 0) {
+                for (const message of data.data) {
+                    // 检查是否已存在相同ID的消息
+                    if (!messagesData.some(m => m.id === message.id)) {
+                        messagesData.push(message);
                         addMessage(message);
-                        displayedMessages.add(message.id);
-                        lastMessageId = Math.max(lastMessageId, message.id);
-                        newMessages++;
-                    } else {
-                        console.log(`%c[HTTP] 忽略重复消息 ID:${message.id}`, 'color: #FFA500;');
                     }
-                });
-                
-                if (newMessages > 0) {
-                    console.log(`%c[HTTP] 添加了${newMessages}条新消息`, 'color: #2196F3; font-weight: bold;');
-                    scrollToBottom();
-                } else {
-                    console.log('%c[HTTP] 没有新消息', 'color: #2196F3;');
                 }
                 
-                return; // 成功获取数据，退出循环
-            } else {
-                throw new Error(data.message || '获取事件消息失败');
+                // 滚动到底部
+                scrollToBottom();
             }
-        } catch (error) {
-            retryCount++;
-            console.error(`%c[HTTP] 获取事件消息出错 (尝试 ${retryCount}/${maxRetries}):`, 'color: #F44336;', error);
-            
-            if (retryCount >= maxRetries) {
-                showToast(`获取事件消息失败: ${error.message || '未知错误'}`, 'error');
-            } else {
-                // 指数退避重试
-                const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 5000);
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        } finally {
-            updateLoadingState('messages', false);
         }
+    } catch (error) {
+        console.error('获取消息错误:', error);
+    } finally {
+        updateLoadingState('messages', false);
     }
 }
 
-// 获取事件统计
+// 获取事件统计信息
 async function fetchEventStats() {
-    let retryCount = 0;
-    const maxRetries = 3;
-    
-    while (retryCount < maxRetries) {
-        try {
-            updateLoadingState('stats', true);
-            
-            const response = await fetch(`${API_BASE_URL}/event/${eventId}/stats`, {
-                signal: AbortSignal.timeout(5000) // 5秒超时
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP错误: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                updateEventStats(data.data);
-                return; // 成功获取数据，退出循环
-            } else {
-                throw new Error(data.message || '获取事件统计失败');
-            }
-        } catch (error) {
-            retryCount++;
-            console.error(`获取事件统计出错 (尝试 ${retryCount}/${maxRetries}):`, error);
-            
-            if (retryCount >= maxRetries) {
-                // 最后一次尝试失败，但这不是关键功能，只记录日志不显示错误提示
-                console.error('获取事件统计最终失败:', error);
-            } else {
-                // 指数退避重试
-                const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 3000);
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        } finally {
-            updateLoadingState('stats', false);
+    try {
+        const response = await fetch(`/api/event/${eventId}/stats`, {
+            headers: getAuthHeaders(),
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) return;
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            updateEventStats(data.data);
         }
+    } catch (error) {
+        console.error('获取统计信息错误:', error);
     }
 }
 
@@ -1143,108 +1160,50 @@ function toggleCollapsible(id) {
 
 // 发送消息
 async function sendMessage() {
-    const message = elements.userInput.value.trim();
+    const messageInput = document.getElementById('user-message');
+    const message = messageInput.value.trim();
     
     if (!message) return;
     
-    // 禁用发送按钮，防止重复发送
-    elements.sendButton.disabled = true;
-    
-    // 检查WebSocket连接状态
-    if (!socket.connected) {
-        showToast('WebSocket未连接，无法发送消息', 'error');
-        elements.sendButton.disabled = false;
-        return;
-    }
-    
-    // 保存原始按钮文字，移到try块外部确保finally可以访问到
-    const originalButtonText = elements.sendButton.querySelector('.cyber-btn-text').textContent;
-    elements.sendButton.querySelector('.cyber-btn-text').textContent = '发送中...';
-    
     try {
-        // 尝试通过API发送消息
-        const response = await fetch(`${API_BASE_URL}/event/send_message/${eventId}`, {
+        // 禁用发送按钮
+        const sendButton = document.getElementById('send-message-btn');
+        sendButton.disabled = true;
+        
+        const response = await fetch(`/api/event/send_message/${eventId}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, sender: 'user' }),
-            // 添加超时设置
-            signal: AbortSignal.timeout(10000) // 10秒超时
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+                message: message,
+                sender: 'user'
+            }),
+            credentials: 'include'
         });
+        
+        if (response.status === 401) {
+            showToast('登录已过期，请重新登录', 'error');
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 1500);
+            return;
+        }
         
         const data = await response.json();
         
         if (data.status === 'success') {
             // 清空输入框
-            elements.userInput.value = '';
-            
-            // 如果没有通过WebSocket收到自己的消息，手动添加
-            setTimeout(() => {
-                const messageExists = Array.from(elements.chatMessages.children).some(
-                    el => el.classList.contains('message-user') && 
-                         el.querySelector('.message-content p')?.textContent === message
-                );
-                
-                if (!messageExists) {
-                    // 创建临时消息对象
-                    const tempMessage = {
-                        id: 'temp-' + Date.now(),
-                        message_from: 'user',
-                        message_type: 'user_message',
-                        message_content: message,
-                        created_at: new Date().toISOString()
-                    };
-                    
-                    // 添加到界面
-                    addMessage(tempMessage);
-                    scrollToBottom();
-                }
-            }, 1000); // 等待1秒，给WebSocket一些时间
+            messageInput.value = '';
+            messageInput.focus();
         } else {
-            showToast('发送消息失败: ' + (data.message || '未知错误'), 'error');
-            console.error('发送消息失败:', data);
+            showToast('发送失败: ' + (data.message || '未知错误'), 'error');
         }
     } catch (error) {
-        // 处理不同类型的错误
-        if (error.name === 'AbortError') {
-            showToast('发送消息超时，请稍后重试', 'error');
-        } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-            showToast('网络连接错误，请检查网络连接', 'error');
-        } else {
-            showToast('发送消息出错: ' + (error.message || '未知错误'), 'error');
-        }
-        console.error('发送消息出错:', error);
-        
-        // 尝试通过WebSocket直接发送
-        try {
-            socket.emit('message', {
-                event_id: eventId,
-                message: message,
-                sender: 'user'
-            });
-            
-            // 清空输入框
-            elements.userInput.value = '';
-            
-            // 添加临时消息
-            const tempMessage = {
-                id: 'temp-' + Date.now(),
-                message_from: 'user',
-                message_type: 'user_message',
-                message_content: message,
-                created_at: new Date().toISOString()
-            };
-            
-            addMessage(tempMessage);
-            scrollToBottom();
-            
-            showToast('通过WebSocket发送消息成功', 'success');
-        } catch (socketError) {
-            console.error('通过WebSocket发送消息失败:', socketError);
-        }
+        console.error('发送消息错误:', error);
+        showToast('网络错误，请稍后重试', 'error');
     } finally {
-        // 恢复按钮状态
-        elements.sendButton.disabled = false;
-        elements.sendButton.querySelector('.cyber-btn-text').textContent = originalButtonText || '发送';
+        // 启用发送按钮
+        const sendButton = document.getElementById('send-message-btn');
+        sendButton.disabled = false;
     }
 }
 
@@ -1661,10 +1620,20 @@ async function fetchWaitingExecutions() {
             console.log('%c[HTTP] 请求等待处理的执行任务', 'background: #FF9800; color: white; padding: 2px 5px; border-radius: 3px;');
             
             const response = await fetch(`${API_BASE_URL}/event/${eventId}/executions?status=waiting`, {
+                headers: getAuthHeaders(),
+                credentials: 'include',
                 signal: AbortSignal.timeout(5000) // 5秒超时
             });
             
             if (!response.ok) {
+                if (response.status === 401) {
+                    // 认证失败，清除token并跳转登录
+                    localStorage.removeItem('access_token');
+                    localStorage.removeItem('user_info');
+                    document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                    window.location.href = '/login';
+                    return;
+                }
                 throw new Error(`HTTP错误: ${response.status}`);
             }
             
@@ -1953,7 +1922,11 @@ async function submitExecutionResult() {
         // 提交执行结果
         const response = await fetch(`${API_BASE_URL}/event/${eventId}/execution/${currentExecution.execution_id || currentExecution.id}/complete`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeaders()
+            },
+            credentials: 'include',
             body: JSON.stringify({
                 result: result,
                 status: isSuccess ? 'completed' : 'failed'
@@ -1963,6 +1936,14 @@ async function submitExecutionResult() {
         
         // 检查响应状态
         if (!response.ok) {
+            if (response.status === 401) {
+                // 认证失败，清除token并跳转登录
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user_info');
+                document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                window.location.href = '/login';
+                return;
+            }
             const errorText = await response.text();
             throw new Error(`服务器响应错误 (${response.status}): ${errorText}`);
         }
