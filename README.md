@@ -75,6 +75,8 @@ cd deepsoc
 ```bash
 virtualenv venv
 source venv/bin/activate
+# Windows
+# .\venv\Scripts\activate
 pip install -r requirements.txt
 # pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com 
 # pip install -r requirements.txt -i https://mirrors.cloud.tencent.com/pypi/simple --trusted-host mirrors.cloud.tencent.com
@@ -94,9 +96,14 @@ cp sample.env .env
 ```bash
 # 初始化数据库
 python main.py -init
+# 首次初始化完成后，会创建admin/admin123的管理员账号
+# 可以通过修改.env定义初始化账号/密码
 ```
 
 ```bash
+# 使用单独的窗口，启动独立进程
+# 启动前记得激活venv环境
+
 # 主服务（Web、API）
 python main.py
 # 指挥官
