@@ -120,6 +120,29 @@ def check_auth():
             'authenticated': False
         }), 200
 
+@auth_bp.route('/logout', methods=['POST'])
+@jwt_required(optional=True)
+def logout():
+    """用户退出登录，清理服务器端会话"""
+    # 注意：由于JWT是无状态的，服务器端无法真正"失效"令牌
+    # 这里只是返回一个成功响应，客户端负责清理本地存储的令牌
+    
+    # 记录退出日志
+    current_user = get_jwt_identity()
+    if current_user:
+        logger.info(f"用户退出登录: {current_user}")
+    
+    # 创建响应对象并清除cookie
+    response = make_response(jsonify({
+        'status': 'success',
+        'message': '退出登录成功'
+    }))
+    
+    # 清除cookie
+    response.set_cookie('access_token', '', expires=0)
+    
+    return response, 200
+
 # 管理员接口 - 创建初始管理员账户
 @auth_bp.route('/init-admin', methods=['POST'])
 def init_admin():
