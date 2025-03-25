@@ -3,8 +3,28 @@
 // API基础URL
 const API_BASE_URL = '/api';
 
+// 在API请求头中添加认证信息的辅助函数
+function getAuthHeaders() {
+    const token = localStorage.getItem('access_token') || getCookie('access_token');
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+    };
+}
+
+// 获取cookie的辅助函数
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+
 // 页面加载完成后执行
 document.addEventListener('DOMContentLoaded', () => {
+    // 验证用户是否登录
+    checkAuth();
+    
     // 获取事件列表
     fetchEvents();
     
@@ -15,6 +35,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('event-form').addEventListener('submit', (e) => {
         e.preventDefault();
         
+        const token = localStorage.getItem('access_token') || getCookie('access_token');
+        if (!token) {
+            showToast('请先登录', 'error');
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 1500);
+            return;
+        }
+        
         const eventData = {
             event_name: document.getElementById('event-name').value,
             message: document.getElementById('event-message').value,
@@ -23,14 +52,88 @@ document.addEventListener('DOMContentLoaded', () => {
             source: document.getElementById('event-source').value
         };
         
-        createEvent(eventData);
+        // 验证必填字段
+        if (!eventData.message) {
+            showToast('事件描述不能为空', 'error');
+            return;
+        }
+        
+        // 禁用提交按钮
+        const submitButton = document.querySelector('#event-form button[type="submit"]');
+        const originalButtonText = submitButton.textContent;
+        submitButton.disabled = true;
+        submitButton.textContent = '创建中...';
+        
+        // 发送创建事件请求
+        fetch('/api/event/create', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(eventData),
+            credentials: 'include'  // 包含凭证
+        })
+        .then(response => {
+            if (response.status === 401) {
+                // 未授权，跳转到登录页
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user_info');
+                document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                window.location.href = '/login';
+                throw new Error('未登录或会话已过期');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                showToast('事件创建成功', 'success');
+                
+                // 重置表单
+                document.getElementById('event-form').reset();
+                
+                // 刷新事件列表
+                fetchEvents();
+                
+                // 跳转到作战室页面
+                setTimeout(() => {
+                    window.location.href = `/warroom/${data.data.event_id}`;
+                }, 1000);
+            } else {
+                showToast(data.message || '创建失败，请稍后重试', 'error');
+                // 恢复提交按钮
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
+        })
+        .catch(error => {
+            if (error.message !== '未登录或会话已过期') {
+                console.error('创建事件错误:', error);
+                showToast('网络错误，请稍后重试', 'error');
+                // 恢复提交按钮
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
+        });
     });
+    
+    // 登出按钮
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function() {
+            logout();
+        });
+    }
+    
+    // 添加用户信息显示
+    updateUserInfo();
 });
 
 // 获取事件列表
 async function fetchEvents() {
     try {
         const eventsContainer = document.getElementById('events-container');
+        
+        if (!eventsContainer) return;
+        
+        // 显示加载中
         eventsContainer.innerHTML = `
             <div class="text-center py-5">
                 <div class="spinner-border text-primary" role="status">
@@ -40,209 +143,224 @@ async function fetchEvents() {
             </div>
         `;
         
-        const response = await fetch(`${API_BASE_URL}/event/list`);
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            displayEvents(data.data);
-        } else {
-            showError('获取事件列表失败');
-        }
-    } catch (error) {
-        console.error('获取事件列表出错:', error);
-        showError('获取事件列表出错');
-    }
-}
-
-// 显示事件列表
-function displayEvents(events) {
-    const container = document.getElementById('events-container');
-    
-    if (events.length === 0) {
-        container.innerHTML = '<div class="text-center py-5"><p>暂无安全事件</p></div>';
-        return;
-    }
-    
-    let html = '';
-    events.forEach(event => {
-        const createdAt = new Date(event.created_at).toLocaleString();
-        html += `
-            <div class="card event-card severity-${event.severity} status-${event.status}" 
-                 onclick="window.location.href='/warroom/${event.event_id}'">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <h5 class="card-title">${event.event_name}</h5>
-                        <span class="badge bg-${getBadgeColor(event.status)}">${getStatusText(event.status)}</span>
-                    </div>
-                    <h6 class="card-subtitle mb-2 text-muted">ID: ${event.event_id} | 来源: ${event.source}</h6>
-                    <p class="card-text">${event.message}</p>
-                    <div class="d-flex justify-content-between">
-                        <small class="text-muted">创建时间: ${createdAt}</small>
-                        <span class="badge bg-${getSeverityColor(event.severity)}">${getSeverityText(event.severity)}</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-    
-    container.innerHTML = html;
-}
-
-// 创建安全事件
-async function createEvent(eventData) {
-    try {
-        // 禁用提交按钮
-        const submitButton = document.querySelector('#event-form button[type="submit"]');
-        submitButton.disabled = true;
-        submitButton.innerHTML = `
-            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-            创建中...
-        `;
-        
-        const response = await fetch(`${API_BASE_URL}/event/create`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(eventData)
+        const response = await fetch(`${API_BASE_URL}/event/list`, {
+            headers: getAuthHeaders(),
+            credentials: 'include'  // 包含凭证
         });
         
+        if (response.status === 401) {
+            // 未登录，显示提示信息
+            eventsContainer.innerHTML = `
+                <div class="text-center py-5">
+                    <div class="alert alert-warning" role="alert">
+                        请先<a href="/login" class="alert-link">登录</a>后查看事件列表
+                    </div>
+                </div>
+            `;
+            throw new Error('未登录或会话已过期');
+        }
+        
         const data = await response.json();
         
-        // 恢复提交按钮
-        submitButton.disabled = false;
-        submitButton.innerHTML = '创建事件';
-        
         if (data.status === 'success') {
-            // 重置表单
-            document.getElementById('event-form').reset();
+            if (data.data.length === 0) {
+                // 没有事件
+                eventsContainer.innerHTML = `
+                    <div class="text-center py-5">
+                        <p class="text-muted">暂无安全事件</p>
+                    </div>
+                `;
+                return;
+            }
             
-            // 刷新事件列表
-            fetchEvents();
+            // 渲染事件列表
+            let html = '<div class="list-group">';
             
-            // 显示成功消息
-            showSuccess('事件创建成功！');
+            data.data.forEach(event => {
+                const createdAt = new Date(event.created_at).toLocaleString('zh-CN');
+                const eventLink = `/warroom/${event.event_id}`;
+                const statusBadge = getStatusBadge(event.status);
+                const severityBadge = getSeverityBadge(event.severity);
+                
+                html += `
+                    <a href="${eventLink}" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h5 class="mb-1">${event.event_name || '未命名事件'}</h5>
+                            <small>${createdAt}</small>
+                        </div>
+                        <p class="mb-1">${event.message}</p>
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <span class="badge rounded-pill ${severityBadge.class}">${severityBadge.text}</span>
+                                <span class="badge rounded-pill ${statusBadge.class}">${statusBadge.text}</span>
+                            </div>
+                            <small>来源: ${event.source}</small>
+                        </div>
+                    </a>
+                `;
+            });
             
-            // 跳转到作战室
-            setTimeout(() => {
-                window.location.href = `/warroom/${data.data.event_id}`;
-            }, 1000);
+            html += '</div>';
+            eventsContainer.innerHTML = html;
         } else {
-            showError(data.message || '创建事件失败');
+            eventsContainer.innerHTML = `
+                <div class="alert alert-danger" role="alert">
+                    加载失败: ${data.message || '未知错误'}
+                </div>
+            `;
         }
     } catch (error) {
-        console.error('创建事件出错:', error);
-        showError('创建事件出错');
-        
-        // 恢复提交按钮
-        const submitButton = document.querySelector('#event-form button[type="submit"]');
-        submitButton.disabled = false;
-        submitButton.innerHTML = '创建事件';
+        console.error('获取事件列表错误:', error);
+        if (error.message !== '未登录或会话已过期') {
+            eventsContainer.innerHTML = `
+                <div class="alert alert-danger" role="alert">
+                    网络错误，请稍后重试
+                </div>
+            `;
+        }
     }
 }
 
-// 显示成功消息
-function showSuccess(message) {
-    const toastContainer = document.getElementById('toast-container');
-    const toastElement = document.createElement('div');
-    toastElement.className = 'toast';
-    toastElement.setAttribute('role', 'alert');
-    toastElement.setAttribute('aria-live', 'assertive');
-    toastElement.setAttribute('aria-atomic', 'true');
+// 检查用户是否已登录
+function checkAuth() {
+    const token = localStorage.getItem('access_token') || getCookie('access_token');
     
-    toastElement.innerHTML = `
-        <div class="toast-header bg-success text-white">
-            <strong class="me-auto">成功</strong>
-            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-        <div class="toast-body">
-            ${message}
-        </div>
-    `;
+    // 根据登录状态更新UI
+    updateAuthUI(!!token);
     
-    toastContainer.appendChild(toastElement);
-    
-    const toast = new bootstrap.Toast(toastElement);
-    toast.show();
-    
-    // 自动移除
-    toastElement.addEventListener('hidden.bs.toast', () => {
-        toastElement.remove();
-    });
+    if (token) {
+        // 验证token有效性
+        fetch('/api/auth/check-auth', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            credentials: 'include'  // 包含凭证
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.authenticated) {
+                // token无效，清除本地存储，更新UI
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user_info');
+                document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                updateAuthUI(false);
+            }
+        })
+        .catch(error => {
+            console.error('验证认证状态错误:', error);
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user_info');
+            document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            updateAuthUI(false);
+        });
+    }
 }
 
-// 显示错误消息
-function showError(message) {
-    const toastContainer = document.getElementById('toast-container');
-    const toastElement = document.createElement('div');
-    toastElement.className = 'toast';
-    toastElement.setAttribute('role', 'alert');
-    toastElement.setAttribute('aria-live', 'assertive');
-    toastElement.setAttribute('aria-atomic', 'true');
+// 更新UI以反映认证状态
+function updateAuthUI(isAuthenticated) {
+    const createEventCard = document.querySelector('.card:has(#event-form)');
+    const loginPrompt = document.getElementById('login-prompt');
     
-    toastElement.innerHTML = `
-        <div class="toast-header bg-danger text-white">
-            <strong class="me-auto">错误</strong>
-            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-        <div class="toast-body">
-            ${message}
-        </div>
-    `;
+    if (createEventCard) {
+        if (isAuthenticated) {
+            createEventCard.classList.remove('d-none');
+            if (loginPrompt) loginPrompt.classList.add('d-none');
+        } else {
+            createEventCard.classList.add('d-none');
+            if (loginPrompt) loginPrompt.classList.remove('d-none');
+        }
+    }
     
-    toastContainer.appendChild(toastElement);
+    // 更新导航栏状态
+    const loginNavItem = document.getElementById('login-nav-item');
+    const userNavItem = document.getElementById('user-nav-item');
     
-    const toast = new bootstrap.Toast(toastElement);
-    toast.show();
-    
-    // 自动移除
-    toastElement.addEventListener('hidden.bs.toast', () => {
-        toastElement.remove();
-    });
+    if (loginNavItem && userNavItem) {
+        if (isAuthenticated) {
+            loginNavItem.classList.add('d-none');
+            userNavItem.classList.remove('d-none');
+        } else {
+            loginNavItem.classList.remove('d-none');
+            userNavItem.classList.add('d-none');
+        }
+    }
 }
 
-// 获取状态对应的文本
-function getStatusText(status) {
+// 更新用户信息显示
+function updateUserInfo() {
+    const userInfoElement = document.getElementById('user-info');
+    if (userInfoElement) {
+        const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+        if (userInfo.username) {
+            userInfoElement.textContent = userInfo.username;
+        }
+    }
+}
+
+// 获取状态对应的徽章样式
+function getStatusBadge(status) {
     const statusMap = {
-        'pending': '待处理',
-        'processing': '处理中',
-        'round_finished': '轮次完成',
-        'completed': '已完成',
-        'resolved': '已解决',
-        'failed': '失败'
+        'pending': { class: 'bg-warning text-dark', text: '待处理' },
+        'processing': { class: 'bg-info text-dark', text: '处理中' },
+        'completed': { class: 'bg-success', text: '已完成' },
+        'closed': { class: 'bg-secondary', text: '已关闭' },
+        'error': { class: 'bg-danger', text: '错误' }
     };
-    return statusMap[status] || status;
+    
+    return statusMap[status] || { class: 'bg-secondary', text: status };
 }
 
-// 获取状态对应的徽章颜色
-function getBadgeColor(status) {
-    const colorMap = {
-        'pending': 'secondary',
-        'processing': 'primary', 
-        'round_finished': 'info',
-        'completed': 'success',
-        'resolved': 'success',
-        'failed': 'danger'
-    };
-    return colorMap[status] || 'secondary';
-}
-
-// 获取严重程度对应的文本
-function getSeverityText(severity) {
+// 获取严重程度对应的徽章样式
+function getSeverityBadge(severity) {
     const severityMap = {
-        'low': '低',
-        'medium': '中',
-        'high': '高'
+        'low': { class: 'bg-success', text: '低' },
+        'medium': { class: 'bg-warning text-dark', text: '中' },
+        'high': { class: 'bg-danger', text: '高' }
     };
-    return severityMap[severity] || severity;
+    
+    return severityMap[severity] || { class: 'bg-secondary', text: severity };
 }
 
-// 获取严重程度对应的徽章颜色
-function getSeverityColor(severity) {
-    const colorMap = {
-        'low': 'success',
-        'medium': 'warning',
-        'high': 'danger'
-    };
-    return colorMap[severity] || 'secondary';
+// 显示提示信息
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'primary'}`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    const bsToast = new bootstrap.Toast(toast, {
+        autohide: true,
+        delay: 3000
+    });
+    
+    bsToast.show();
+    
+    // 自动清理DOM
+    toast.addEventListener('hidden.bs.toast', function() {
+        toast.remove();
+    });
+}
+
+// 退出登录
+function logout() {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user_info');
+    document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    showToast('已成功退出登录', 'info');
+    setTimeout(() => {
+        window.location.href = '/login';
+    }, 1500);
 } 
