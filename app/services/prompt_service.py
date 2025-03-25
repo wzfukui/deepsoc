@@ -25,7 +25,6 @@ class PromptService:
             '_captain': 'role_soc_captain.md',
             '_manager': 'role_soc_manager.md',
             '_operator': 'role_soc_operator.md',
-            '_coordinator': 'role_soc_coordinator.md',
             '_expert': 'role_soc_expert.md'
             
         }
