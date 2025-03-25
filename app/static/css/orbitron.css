@@ -1,21 +1,21 @@
-/* Orbitron字体 */
 @font-face {
   font-family: 'Orbitron';
   font-style: normal;
   font-weight: 400;
-  src: local('Orbitron Regular'), local('Orbitron-Regular'), url('/static/fonts/orbitron-regular.woff2') format('woff2');
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/orbitron/v31/yMJMMIlzdpvBhQQL_SC3X9yhF25-T1nyGy6xpg.ttf) format('truetype');
 }
-
 @font-face {
   font-family: 'Orbitron';
   font-style: normal;
   font-weight: 500;
-  src: local('Orbitron Medium'), local('Orbitron-Medium'), url('/static/fonts/orbitron-medium.woff2') format('woff2');
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/orbitron/v31/yMJMMIlzdpvBhQQL_SC3X9yhF25-T1nyKS6xpg.ttf) format('truetype');
 }
-
 @font-face {
   font-family: 'Orbitron';
   font-style: normal;
   font-weight: 700;
-  src: local('Orbitron Bold'), local('Orbitron-Bold'), url('/static/fonts/orbitron-bold.woff2') format('woff2');
-} 
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/orbitron/v31/yMJMMIlzdpvBhQQL_SC3X9yhF25-T1ny_Cmxpg.ttf) format('truetype');
+}
