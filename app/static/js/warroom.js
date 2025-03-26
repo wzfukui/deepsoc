@@ -590,7 +590,44 @@ function initEventListeners() {
     
     // 退出按钮点击事件
     elements.logoutBtn.addEventListener('click', () => {
-        window.location.href = '/';
+        // 设置手动断开标志
+        isManuallyDisconnected = true;
+        
+        // 断开WebSocket连接
+        if (socket.connected) {
+            console.log('%c[退出] 断开WebSocket连接', 'background: #E91E63; color: white; padding: 2px 5px; border-radius: 3px;');
+            socket.disconnect();
+        }
+        
+        // 停止自动刷新
+        stopAutoRefresh();
+        
+        // 通知用户
+        showToast('正在退出作战室...', 'info');
+        
+        // 调用后端登出接口
+        fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            credentials: 'include'
+        })
+        .then(response => {
+            // 无论成功失败都清理本地状态
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user_info');
+            document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            
+            console.log('%c[退出] 登出接口调用完成，即将跳转到首页', 'background: #E91E63; color: white; padding: 2px 5px; border-radius: 3px;');
+            window.location.href = '/';
+        })
+        .catch(error => {
+            console.error('登出接口调用失败:', error);
+            // 即使API调用失败，也清理本地状态并跳转
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user_info');
+            document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            window.location.href = '/';
+        });
     });
     
     // 点击模态框背景关闭模态框
