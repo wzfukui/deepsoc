@@ -568,7 +568,9 @@ function initEventListeners() {
     elements.modeSwitch.addEventListener('click', toggleMode);
     
     // 事件详情按钮点击事件
-    elements.eventDetailsBtn.addEventListener('click', showEventDetailsModal);
+    if (elements.eventDetailsBtn) {
+        elements.eventDetailsBtn.addEventListener('click', showEventDetailsModal);
+    }
     
     // 关闭模态框按钮点击事件
     document.querySelectorAll('.cyber-modal-close').forEach(btn => {
@@ -590,44 +592,7 @@ function initEventListeners() {
     
     // 退出按钮点击事件
     elements.logoutBtn.addEventListener('click', () => {
-        // 设置手动断开标志
-        isManuallyDisconnected = true;
-        
-        // 断开WebSocket连接
-        if (socket.connected) {
-            console.log('%c[退出] 断开WebSocket连接', 'background: #E91E63; color: white; padding: 2px 5px; border-radius: 3px;');
-            socket.disconnect();
-        }
-        
-        // 停止自动刷新
-        stopAutoRefresh();
-        
-        // 通知用户
-        showToast('正在退出作战室...', 'info');
-        
-        // 调用后端登出接口
-        fetch('/api/auth/logout', {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            credentials: 'include'
-        })
-        .then(response => {
-            // 无论成功失败都清理本地状态
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('user_info');
-            document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-            
-            console.log('%c[退出] 登出接口调用完成，即将跳转到首页', 'background: #E91E63; color: white; padding: 2px 5px; border-radius: 3px;');
-            window.location.href = '/';
-        })
-        .catch(error => {
-            console.error('登出接口调用失败:', error);
-            // 即使API调用失败，也清理本地状态并跳转
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('user_info');
-            document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-            window.location.href = '/';
-        });
+        window.location.href = '/';
     });
     
     // 点击模态框背景关闭模态框
@@ -713,6 +678,8 @@ async function fetchEventDetails() {
         const data = await response.json();
         
         if (data.status === 'success') {
+            // 保存事件数据到全局变量
+            eventData = data.data;
             displayEventDetails(data.data);
         } else {
             console.error('获取事件详情失败:', data.message);
@@ -1263,14 +1230,40 @@ function toggleMode() {
 
 // 显示事件详情模态框
 function showEventDetailsModal() {
+    console.log('%c[事件详情] 尝试显示事件详情模态框', 'background: #3F51B5; color: white; padding: 2px 5px; border-radius: 3px;');
+    console.log('%c[事件详情] 当前事件数据:', 'color: #3F51B5;', eventData);
+    
     if (!eventData) {
+        console.error('%c[事件详情] 事件数据为空，尝试重新获取', 'color: #F44336;');
         showToast('事件数据加载中，请稍后再试', 'warning');
+        
+        // 重新获取事件数据
+        fetchEventDetails().then(() => {
+            if (eventData) {
+                console.log('%c[事件详情] 重新获取事件数据成功，显示模态框', 'color: #4CAF50;');
+                showEventDetailsModal();
+            } else {
+                console.error('%c[事件详情] 重新获取事件数据失败', 'color: #F44336;');
+            }
+        });
         return;
     }
     
     const messageDetailElement = document.getElementById('event-message-detail');
     const contextDetailElement = document.getElementById('event-context-detail');
     const summaryListElement = document.getElementById('event-summary-list');
+    
+    if (!messageDetailElement || !contextDetailElement || !summaryListElement) {
+        console.error('%c[事件详情] 模态框元素不存在', 'color: #F44336;', {
+            messageDetailElement,
+            contextDetailElement,
+            summaryListElement
+        });
+        showToast('模态框元素不存在，请联系管理员', 'error');
+        return;
+    }
+    
+    console.log('%c[事件详情] 填充事件详情数据', 'color: #3F51B5;');
     
     // 显示事件原始信息
     messageDetailElement.textContent = eventData.message || '无原始信息';
@@ -1282,13 +1275,40 @@ function showEventDetailsModal() {
     fetchEventSummaries(summaryListElement);
     
     // 显示模态框
-    elements.eventDetailsModal.style.display = 'flex';
+    console.log('%c[事件详情] 显示模态框', 'color: #4CAF50;');
+    
+    if (elements.eventDetailsModal) {
+        elements.eventDetailsModal.style.display = 'flex';
+    } else {
+        console.error('%c[事件详情] eventDetailsModal元素不存在', 'color: #F44336;');
+        const modal = document.getElementById('event-details-modal');
+        if (modal) {
+            console.log('%c[事件详情] 通过ID找到模态框元素，显示模态框', 'color: #4CAF50;');
+            modal.style.display = 'flex';
+        } else {
+            console.error('%c[事件详情] 无法找到事件详情模态框元素', 'color: #F44336;');
+            showToast('无法找到事件详情模态框，请联系管理员', 'error');
+        }
+    }
 }
 
 // 获取事件总结
 async function fetchEventSummaries(container) {
     try {
-        const response = await fetch(`${API_BASE_URL}/event/${eventId}/summaries`);
+        const response = await fetch(`${API_BASE_URL}/event/${eventId}/summaries`, {
+            headers: getAuthHeaders(),
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            // 认证失败，显示提示并重定向
+            showToast('登录已过期，请重新登录', 'error');
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 1500);
+            return;
+        }
+        
         const data = await response.json();
         
         if (data.status === 'success') {
@@ -1349,7 +1369,20 @@ function showRoleHistoryModal(role) {
 // 获取角色历史
 async function fetchRoleHistory(role, container) {
     try {
-        const response = await fetch(`${API_BASE_URL}/event/${eventId}/messages?role=${role}`);
+        const response = await fetch(`${API_BASE_URL}/event/${eventId}/messages?role=${role}`, {
+            headers: getAuthHeaders(),
+            credentials: 'include'
+        });
+        
+        if (response.status === 401) {
+            // 认证失败，显示提示并重定向
+            showToast('登录已过期，请重新登录', 'error');
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 1500);
+            return;
+        }
+        
         const data = await response.json();
         
         if (data.status === 'success') {
