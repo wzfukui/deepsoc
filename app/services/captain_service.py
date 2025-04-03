@@ -15,14 +15,12 @@ logger = logging.getLogger(__name__)
 
 
 def get_events_to_process():
-    """获取待处理的安全事件，包括进入下一轮的事件"""
-    from sqlalchemy import or_
-    return Event.query.filter(
-        or_(
-            Event.status == 'pending',
-            Event.status == 'round_finished'
-        )
-    ).order_by(Event.created_at.asc()).first()  
+    """获取待处理的安全事件
+    
+    在新的状态流转设计中，Captain只处理pending状态的事件
+    round_finished状态的事件由event_next_round_worker处理并转换为pending
+    """
+    return Event.query.filter_by(status='pending').order_by(Event.created_at.asc()).first()  
 
 def process_event(event):
     """处理单个安全事件
@@ -31,7 +29,9 @@ def process_event(event):
         event: Event对象
     """
     logger.info(f"处理事件: {event.event_id} - {event.event_name}")
-    new_round = False if event.status == 'processing' else True
+    # 在新的状态流转设计中，新轮次的启动由event_next_round_worker完成
+    # 进入captain处理的事件状态都是pending，通过current_round可判断是否为新一轮
+    is_first_round = (event.current_round == 1)
     round_id = event.current_round
 
     create_standard_message(
@@ -78,9 +78,9 @@ def process_event(event):
     yaml_data = yaml.dump(request_data, allow_unicode=True, default_flow_style=False, indent=2)
     logger.info(yaml_data)
 
-    # 针对进入下一轮的事件，提供上一轮的总结信息
+    # 针对非第一轮的事件，提供上一轮的总结信息
     last_round_summary_content = ""
-    if new_round:
+    if not is_first_round:
         last_round_summary = Summary.query.filter_by(event_id=event.event_id).order_by(Summary.created_at.desc()).first()
         if last_round_summary:
             last_round_summary_content = f"""
