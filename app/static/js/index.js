@@ -258,9 +258,15 @@ function checkAuth() {
 
 // 更新UI以反映认证状态
 function updateAuthUI(isAuthenticated) {
-    const createEventCard = document.querySelector('.card:has(#event-form)');
+    const cardList = document.querySelectorAll('.card');
+    let createEventCard = null;
+    cardList.forEach(card => {
+        if (card.querySelector('#event-form')) {
+            createEventCard = card;
+        }
+    });
+
     const loginPrompt = document.getElementById('login-prompt');
-    
     if (createEventCard) {
         if (isAuthenticated) {
             createEventCard.classList.remove('d-none');
