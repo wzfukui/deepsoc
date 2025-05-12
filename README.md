@@ -59,7 +59,8 @@ DeepSOC产品工作逻辑图
 ### 环境要求
 
 - Python 3.8+
-- SQLite（试验阶段方便部署测试，成熟之后随时切换）
+- SQLite（试验阶段方便部署测试）
+- MySQL（推荐运行时使用）
 - 自动化系统（支持SOAR编排自动化系统，推荐[OctoMation社区免费版](https://github.com/flagify-com/OctoMation)）
   - [剧本配置信息](docs/soar-config-help.md)
 
@@ -73,6 +74,9 @@ cd deepsoc
 ```
 
 2. 安装依赖
+
+2.1 Python环境及安装包
+
 ```bash
 virtualenv venv
 source venv/bin/activate
@@ -82,6 +86,20 @@ pip install -r requirements.txt
 # pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com 
 # pip install -r requirements.txt -i https://mirrors.cloud.tencent.com/pypi/simple --trusted-host mirrors.cloud.tencent.com
 
+```
+
+2.2 MySQL准备（可选）
+
+非体验/测试环节，建议使用MySQL数据库，增加并发能力和可靠性。使用MySQL方式连接数据库，直接修改.env文件即可。
+
+**请修改密码**
+> MySQL连接密码中的特殊字符串需要通过URL编码替代
+```sql
+CREATE DATABASE IF NOT EXISTS deepsoc DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'deepsoc_user'@'localhost' IDENTIFIED BY 'DeepSOC2025@flagify.com'; 
+GRANT ALL PRIVILEGES ON deepsoc.* TO 'deepsoc_user'@'localhost'; 
+FLUSH PRIVILEGES;
+-- DATABASE_URL="mysql+pymysql://deepsoc_user:DeepSOC2025%40flagify.com@localhost:3306/deepsoc"
 ```
 
 3. 配置环境变量
