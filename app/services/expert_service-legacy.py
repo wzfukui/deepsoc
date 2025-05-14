@@ -1,18 +1,16 @@
 import time
 import uuid
 import json
-import traceback
 import threading
 from datetime import datetime
 from flask import current_app
 from sqlalchemy import func, and_, or_
 from app.models import db, Event, Task, Action, Command, Execution, Summary, Message
 from app.services.llm_service import call_llm, parse_yaml_response
+from app.controllers.socket_controller import broadcast_message
 from app.services.prompt_service import PromptService
 from app.config import config
 from app.utils.message_utils import create_standard_message
-from app.utils.mq_utils import RabbitMQPublisher
-import pika
 import logging
 import yaml
 
@@ -35,12 +33,11 @@ def get_executions_for_summarization():
     
     return completed_executions
 
-def process_execution_summary(execution, publisher: RabbitMQPublisher):
+def process_execution_summary(execution):
     """处理单个执行结果，生成摘要
     
     Args:
         execution: 执行对象
-        publisher: RabbitMQPublisher instance
     """
     logger.info(f"处理执行结果摘要: {execution.execution_id}")
     
@@ -49,9 +46,6 @@ def process_execution_summary(execution, publisher: RabbitMQPublisher):
         execution_result = execution.execution_result
         if not execution_result:
             logger.warning(f"执行结果为空: {execution.execution_id}")
-            execution.ai_summary = "执行结果为空，无法生成AI摘要。"
-            execution.execution_status = 'summarized_error'
-            db.session.commit()
             return
         
         # 如果执行结果是字符串（JSON字符串），则解析为对象
@@ -86,7 +80,7 @@ def process_execution_summary(execution, publisher: RabbitMQPublisher):
         }
         
         # 将上下文转换为JSON格式
-        yaml_context = yaml.dump(context, allow_unicode=True, default_flow_style=False, indent=2)
+        json_context = json.dumps(context, indent=2, ensure_ascii=False)
 
         # 构建系统提示词
         system_prompt = """
@@ -96,8 +90,8 @@ def process_execution_summary(execution, publisher: RabbitMQPublisher):
         
         # 构建用户提示词
         user_prompt = f"""
-            ```yaml
-            {yaml_context}
+            ```json
+            {json_context}
             ```
             以上是基于_caption的任务安排，和_manager的动作细化，以及_operator的命令设置，通过SOAR安全之剧本执行的返回结果。
             当然也有可能是，人类工程师在页面手工完成的处置结果。
@@ -111,19 +105,13 @@ def process_execution_summary(execution, publisher: RabbitMQPublisher):
         # system_prompt = prompt_service.get_system_prompt()
 
         logger.info(f"生成摘要: {execution.execution_id}")
-        db_msg_llm_req = create_standard_message(
+        create_standard_message(
             event_id=execution.event_id,
             message_from='system',
             round_id=execution.round_id,
-            message_type='expert_llm_request_exec_summary',
-            content_data={"text": f"专家智能正在为执行 {execution.execution_id} 的结果生成摘要..."}
+            message_type='llm_request',
+            content_data="正在请求大模型，生成执行结果摘要，请耐心等待......"
         )
-        if db_msg_llm_req and publisher:
-            try:
-                routing_key = f"notifications.frontend.{db_msg_llm_req.event_id}.system.{db_msg_llm_req.message_type}"
-                publisher.publish_message(message_body=db_msg_llm_req.to_dict(), routing_key=routing_key)
-            except Exception as e_pub:
-                logger.error(f"发布专家LLM请求执行摘要消息失败: {e_pub}")
         
         # 使用长文本模型
         response = call_llm(system_prompt, user_prompt, temperature=0.3, long_text=True)
@@ -138,36 +126,12 @@ def process_execution_summary(execution, publisher: RabbitMQPublisher):
         
         db.session.commit()
         
-        # 创建消息记录 (This function now also publishes)
-        create_execution_summary_message(execution, response, publisher)
+        # 创建消息记录
+        create_execution_summary_message(execution, response)
         
     except Exception as e:
         error_msg = f"处理执行结果摘要时出错: {str(e)}"
         logger.error(error_msg)
-        logger.error(traceback.format_exc())
-        # Keep original logic for updating execution on error
-        execution.ai_summary = f"生成AI摘要时出错: {error_msg}"
-        execution.execution_status = 'summarized_error'
-        db.session.commit()
-
-        # Send error message to frontend
-        err_summary_content = {
-            "execution_id": execution.execution_id,
-            "command_id": execution.command_id if execution.command_id else "N/A",
-            "error_message": error_msg,
-            "text": f"为执行 {execution.execution_id} 生成摘要时失败。"
-        }
-        db_msg_summary_err = create_standard_message(
-            event_id=execution.event_id, message_from='_expert',
-            round_id=execution.round_id, message_type='error_execution_summary',
-            content_data=err_summary_content
-        )
-        if db_msg_summary_err and publisher:
-            try:
-                routing_key = f"notifications.frontend.{db_msg_summary_err.event_id}._expert.{db_msg_summary_err.message_type}"
-                publisher.publish_message(message_body=db_msg_summary_err.to_dict(), routing_key=routing_key)
-            except Exception as e_pub_err:
-                logger.error(f"发布执行摘要错误消息失败: {e_pub_err}")
 
 def get_commands_with_completed_executions():
     """获取所有执行已完成但命令状态未更新的命令
@@ -529,12 +493,11 @@ def get_events_for_next_round():
     
     return events
 
-def generate_event_summary(event_id, publisher: RabbitMQPublisher):
+def generate_event_summary(event_id):
     """生成事件总结
     
     Args:
         event_id: 事件ID
-        publisher: RabbitMQPublisher instance
     """
     # 刷新会话，确保获取最新数据
     db.session.expire_all()
@@ -549,7 +512,7 @@ def generate_event_summary(event_id, publisher: RabbitMQPublisher):
     if event.status != 'to_be_summarized':
         logger.info(f"事件状态不是to_be_summarized，不生成总结: {event_id}, 当前状态: {event.status}")
         return
-
+    
     try:
         logger.info(f"生成事件总结: {event_id}, 当前轮次: {event.current_round}, 状态: {event.status}")
         
@@ -584,13 +547,13 @@ def generate_event_summary(event_id, publisher: RabbitMQPublisher):
             })
 
         executions_data = []
-        for execution_item in executions:
+        for execution in executions:
             executions_data.append({
-                "execution_id": execution_item.execution_id,
-                "execution_status": execution_item.execution_status,
-                "command_id": execution_item.command_id,
-                "round_id": execution_item.round_id,
-                "ai_summary": execution_item.ai_summary
+                "execution_id": execution.execution_id,
+                "execution_status": execution.execution_status,
+                "command_id": execution.command_id,
+                "round_id": execution.round_id,
+                "ai_summary": execution.ai_summary
             })
         
         # 获取上一次的总结（如果有）
@@ -620,8 +583,7 @@ def generate_event_summary(event_id, publisher: RabbitMQPublisher):
         
         # 将上下文转换为JSON格式
         json_context = json.dumps(context, indent=2, ensure_ascii=False)
-        yaml_full_context = yaml.dump(context, allow_unicode=True, default_flow_style=False, indent=2, sort_keys=False)
-
+        
         # 构建系统提示词
         system_prompt = """
         你是一个经验丰富的安全专家，擅长分析安全事件并提供专业的总结和建议。
@@ -630,8 +592,8 @@ def generate_event_summary(event_id, publisher: RabbitMQPublisher):
         
         # 构建用户提示词
         user_prompt = f"""
-                    ```yaml
-                    {yaml_full_context}
+                    ```json
+                    {json_context}
                     ```
 
                     请根据以上安全事件信息，生成一份战况汇报，方便_captain基于此再次决策，包括以下几个部分：
@@ -672,20 +634,13 @@ def generate_event_summary(event_id, publisher: RabbitMQPublisher):
             请注意，此事件已被人工标记为已解决。请在总结中反映这一点。
             """
         
-        db_msg_llm_req_event = create_standard_message(
+        create_standard_message(
             event_id=event_id,
             message_from='system',
             round_id=event.current_round,
-            message_type='expert_llm_request_event_summary',
-            content_data={"text":f"专家智能正在为事件 {event_id} 生成最终总结报告..."}
+            message_type='llm_request',
+            content_data="正在请求大模型，生成事件总结，请耐心等待......"
         )
-        if db_msg_llm_req_event and publisher:
-            try:
-                routing_key = f"notifications.frontend.{db_msg_llm_req_event.event_id}.system.{db_msg_llm_req_event.message_type}"
-                publisher.publish_message(message_body=db_msg_llm_req_event.to_dict(), routing_key=routing_key)
-            except Exception as e_pub:
-                logger.error(f"发布专家LLM请求事件总结消息失败: {e_pub}")
-
         # 调用大模型生成总结
         response = call_llm(system_prompt, user_prompt, temperature=0.3, long_text=True)
         
@@ -694,18 +649,23 @@ def generate_event_summary(event_id, publisher: RabbitMQPublisher):
         # 尝试解析响应
         summary_text = ""
         try:
+            # 首先尝试解析为JSON
+            # 仅替换一次json标记和结尾的```标记
             fixed_response = response.replace("```json", "", 1).rstrip().rstrip("```").strip()
             response_data = json.loads(fixed_response)
             summary_text = response_data.get("summary", "")
             
+            # 检查事件ID是否匹配
             if not event.event_id == response_data.get("event_id", ""):
                 logger.warning(f"事件ID不匹配: {event.event_id} != {response_data.get('event_id', '')}")
                 return
         except Exception as e:
             logger.warning(f"解析事件总结时出错: {str(e)} ，使用原始响应作为总结")
-            summary_text = response
-
+            summary_text = response  # 使用原始响应作为总结
+        
+        # 刷新会话，确保获取最新数据
         db.session.expire_all()
+        # 重新获取事件，以防状态在生成总结过程中被修改
         event = Event.query.filter_by(event_id=event_id).first()
         if not event or event.status != 'to_be_summarized':
             logger.warning(f"事件状态已改变，取消总结保存: {event_id}, 当前状态: {event.status if event else '不存在'}")
@@ -715,138 +675,98 @@ def generate_event_summary(event_id, publisher: RabbitMQPublisher):
         summary = Summary(
             summary_id=str(uuid.uuid4()),
             event_id=event_id,
-            round_id=event.current_round,
+            round_id=event.current_round,  # 使用事件的当前轮次
             event_summary=summary_text.strip() if summary_text else "",
             event_suggestion=""
         )
         db.session.add(summary)
         
+        # 更新事件状态为summarized
         event.status = 'summarized'
+        
         db.session.commit()
         logger.info(f"事件总结已保存: {event_id}")
         
-        # 创建消息记录 (This function now also publishes)
-        create_event_summary_message(event, summary, publisher)
+        # 创建消息记录
+        create_event_summary_message(event, summary)
         
     except Exception as e:
         error_msg = f"生成事件总结时出错: {str(e)}"
         logger.error(error_msg)
-        logger.error(traceback.format_exc())
 
-        # Attempt to update event status to 'summary_failed'
-        try:
-            # Re-fetch event in case session is in a weird state
-            event_to_update = Event.query.filter_by(event_id=event_id).first()
-            if event_to_update:
-                event_to_update.status = 'summary_failed'
-                db.session.commit()
-        except Exception as db_err:
-            logger.error(f"尝试更新事件 {event_id} 状态为 'summary_failed' 时数据库错误: {db_err}")
-        
-        # Send error message to frontend
-        err_event_sum_content = {
-            "event_id": event_id,
-            "error_message": error_msg,
-            "text": f"为事件 {event_id} 生成全面总结报告时失败。"
-        }
-        db_msg_event_sum_err = create_standard_message(
-            event_id=event_id, message_from='_expert',
-            round_id=event.current_round if event else 0,
-            message_type='error_event_summary',
-            content_data=err_event_sum_content
-        )
-        if db_msg_event_sum_err and publisher:
-            try:
-                routing_key = f"notifications.frontend.{event_id}._expert.{db_msg_event_sum_err.message_type}"
-                publisher.publish_message(message_body=db_msg_event_sum_err.to_dict(), routing_key=routing_key)
-            except Exception as e_pub:
-                logger.error(f"发布事件总结错误消息失败: {e_pub}")
-
-def create_execution_summary_message(execution, summary_text, publisher: RabbitMQPublisher):
+def create_execution_summary_message(execution, summary):
     """创建执行结果摘要消息
     
     Args:
         execution: 执行对象
-        summary_text: 摘要内容 (from LLM response)
-        publisher: RabbitMQPublisher instance
+        summary: 摘要内容
     """
+    # 构造消息内容
     content_data = {
         "execution_id": execution.execution_id,
         "command_id": execution.command_id,
         "action_id": execution.action_id,
         "task_id": execution.task_id,
-        "ai_summary": summary_text
+        "ai_summary": execution.ai_summary
     }
     
-    db_message = create_standard_message(
+    # 创建标准消息
+    create_standard_message(
         event_id=execution.event_id,
         message_from='_expert',
         round_id=execution.round_id,
-        message_type='execution_summary_generated',
+        message_type='execution_summary',
         content_data=content_data
     )
-    if db_message and publisher:
-        try:
-            routing_key = f"notifications.frontend.{db_message.event_id}._expert.{db_message.message_type}"
-            publisher.publish_message(message_body=db_message.to_dict(), routing_key=routing_key)
-            logger.info(f"消息 [Exec Summary Gen] {db_message.message_id} 已发布. RK: {routing_key}")
-        except Exception as e_pub:
-            logger.error(f"发布执行摘要生成消息失败: {e_pub}")
 
-def create_event_summary_message(event, summary_obj, publisher: RabbitMQPublisher):
+def create_event_summary_message(event, summary):
     """创建事件总结消息
     
     Args:
         event: 事件对象
-        summary_obj: 总结对象 (Summary model instance)
-        publisher: RabbitMQPublisher instance
+        summary: 总结对象
     """
+    # 构造消息内容
     content_data = {
         "event_id": event.event_id,
         "event_name": event.event_name,
         "event_status": event.status,
         "round_id": event.current_round,
-        "summary_id": summary_obj.summary_id,
-        "event_summary": summary_obj.event_summary,
-        "event_suggestion": summary_obj.event_suggestion
+        "event_summary": summary.event_summary,
+        "event_suggestion": summary.event_suggestion
     }
     
-    db_message = create_standard_message(
+    # 创建标准消息
+    create_standard_message(
         event_id=event.event_id,
         message_from='_expert',
         round_id=event.current_round,
-        message_type='event_summary_generated',
+        message_type='event_summary',
         content_data=content_data
     )
-    if db_message and publisher:
-        try:
-            routing_key = f"notifications.frontend.{db_message.event_id}._expert.{db_message.message_type}"
-            publisher.publish_message(message_body=db_message.to_dict(), routing_key=routing_key)
-            logger.info(f"消息 [Event Summary Gen] {db_message.message_id} 已发布. RK: {routing_key}")
-        except Exception as e_pub:
-            logger.error(f"发布事件总结生成消息失败: {e_pub}")
 
 # 线程函数：处理执行结果摘要
-def execution_summary_worker(app, publisher: RabbitMQPublisher):
+def execution_summary_worker(app):
     """处理执行结果摘要的工作线程"""
     with app.app_context():
         logger.info("启动执行结果摘要处理线程")
         while True:
             try:
+                # 获取待处理的执行结果
                 pending_executions = get_executions_for_summarization()
+                
                 if pending_executions:
                     logger.info(f"发现 {len(pending_executions)} 个待处理的执行结果")
+                    
+                    # 处理每个执行结果
                     for execution in pending_executions:
-                        process_execution_summary(execution, publisher)
+                        process_execution_summary(execution)
                 else:
-                    time.sleep(config.EXPERT_EXECUTION_SUMMARY_INTERVAL)
-            except pika.exceptions.AMQPConnectionError as amqp_err:
-                logger.error(f"专家 Execution Worker RabbitMQ连接错误: {amqp_err}.")
-                time.sleep(10)
+                    logger.debug("没有待处理的执行结果，等待中...")
+                    time.sleep(5)
             except Exception as e:
                 logger.error(f"处理执行结果摘要时出错: {str(e)}")
-                logger.error(traceback.format_exc())
-                time.sleep(config.EXPERT_EXECUTION_SUMMARY_INTERVAL)
+                time.sleep(5)
 
 # 线程函数：处理命令状态更新
 def command_status_worker(app):
@@ -984,259 +904,250 @@ def event_summarizing_worker(app):
                 time.sleep(5)  # 错误发生时使用较长的睡眠时间
 
 # 线程函数：处理事件总结生成（待总结 -> 已总结 -> 轮次完成）
-def event_summary_worker(app, publisher: RabbitMQPublisher):
+def event_summary_worker(app):
     """处理事件总结生成的工作线程
     
     该线程负责处理to_be_summarized状态的事件，生成总结，更新为summarized，然后是round_finished
     """
     with app.app_context():
         logger.info("启动事件总结生成线程")
-        sleep_time = config.EXPERT_EVENT_SUMMARY_INTERVAL
-        max_sleep_time = sleep_time * 2
+        
+        # 初始睡眠时间和最大睡眠时间（秒）
+        sleep_time = 5
+        max_sleep_time = 10
         
         while True:
             try:
+                # 刷新会话，确保获取最新数据
                 db.session.expire_all()
+                
+                # 获取待处理的事件
                 pending_events = get_events_to_be_summarized()
+                
                 if pending_events:
                     logger.info(f"发现 {len(pending_events)} 个待生成总结的事件")
+                    
+                    # 处理每个事件
                     for event in pending_events:
-                        generate_event_summary(event.event_id, publisher)
+                        # 生成总结，这会将状态更新为summarized
+                        generate_event_summary(event.event_id)
                         
-                        db.session.expire_all()
-                        event_after_summary = Event.query.filter_by(event_id=event.event_id).first()
-                        if not event_after_summary:
+                        # 重新获取事件，因为状态已更新
+                        db.session.expire_all()  # 刷新会话，确保获取最新数据
+                        event = Event.query.filter_by(event_id=event.event_id).first()
+                        if not event:
                             continue
                         
-                        if event_after_summary.status == 'summarized':
-                            event_after_summary.status = 'round_finished'
-                            if event_after_summary.current_round >= config.EVENT_MAX_ROUND:
-                                event_after_summary.status = 'completed'
-                                logger.info(f"事件已达到最大轮次，标记为已完成: {event_after_summary.event_id}, 最终状态: {event_after_summary.status}")
+                        # 如果事件状态为summarized，更新为round_finished
+                        if event.status == 'summarized':
+                            # 不再增加轮次，轮次增加由advance_event_to_next_round函数负责
+                            event.status = 'round_finished'
+                            
+                            # 如果已经达到最大轮次，则标记为已完成
+                            if event.current_round >= config.EVENT_MAX_ROUND:
+                                event.status = 'completed'
+                                logger.info(f"事件已达到最大轮次，标记为已完成: {event.event_id}, 最终状态: {event.status}")
+                            
                             db.session.commit()
-                            logger.info(f"事件 {event_after_summary.event_id} 状态已更新为 {event_after_summary.status}, 当前轮次: {event_after_summary.current_round}")
-                    sleep_time = config.EXPERT_EVENT_SUMMARY_INTERVAL
+                            logger.info(f"事件 {event.event_id} 状态已更新为 {event.status}, 当前轮次: {event.current_round}")
+                    
+                    # 有事件处理时，重置睡眠时间为初始值
+                    sleep_time = 5
                 else:
+                    logger.debug("没有待生成总结的事件，等待中...")
+                    
+                    # 没有事件时，逐渐增加睡眠时间，但不超过最大值
                     sleep_time = min(sleep_time * 1.5, max_sleep_time)
                 
+                # 使用动态调整的睡眠时间
                 time.sleep(sleep_time)
-            except pika.exceptions.AMQPConnectionError as amqp_err:
-                logger.error(f"专家 Event Summary Worker RabbitMQ连接错误: {amqp_err}.")
-                time.sleep(10)
             except Exception as e:
                 logger.error(f"处理事件总结生成时出错: {str(e)}")
-                logger.error(traceback.format_exc())
-                time.sleep(config.EXPERT_EVENT_SUMMARY_INTERVAL_ERROR or 60)
+                time.sleep(60)  # 错误发生时使用较长的睡眠时间
 
 # 线程函数：处理事件轮次推进（轮次完成 -> 待处理(下一轮)）
-def event_next_round_worker(app, publisher: RabbitMQPublisher):
+def event_next_round_worker(app):
     """处理事件轮次推进的工作线程
     
     该线程负责处理round_finished状态的事件，推进到下一轮
     """
     with app.app_context():
         logger.info("启动事件轮次推进线程")
-        sleep_time = config.EXPERT_EVENT_NEXT_ROUND_INTERVAL
-        max_sleep_time = sleep_time * 2
+        
+        # 初始睡眠时间和最大睡眠时间（秒）
+        sleep_time = 5  # 减小初始睡眠时间，确保更快地检测到round_finished事件
+        max_sleep_time = 10  # 减小最大睡眠时间
         
         while True:
             try:
+                # 刷新会话，确保获取最新数据
                 db.session.expire_all()
+                
+                # 获取待处理的事件
                 pending_events = get_events_for_next_round()
+                
                 if pending_events:
                     logger.info(f"【轮次推进】发现 {len(pending_events)} 个待推进到下一轮的事件")
+                    
+                    # 处理每个事件
                     for event in pending_events:
+                        # 如果事件状态为round_finished，且未达到最大轮次，推进到下一轮
                         if event.status == 'round_finished' and event.current_round <= config.EVENT_MAX_ROUND:
                             logger.info(f"【轮次推进】准备推进事件 {event.event_id} 从轮次 {event.current_round} 到下一轮")
-                            result = advance_event_to_next_round(event.event_id, publisher)
+                            result = advance_event_to_next_round(event.event_id)
                             if result:
                                 logger.info(f"【轮次推进】事件 {event.event_id} 成功推进到下一轮")
-                    sleep_time = config.EXPERT_EVENT_NEXT_ROUND_INTERVAL
+                            else:
+                                logger.warning(f"【轮次推进】事件 {event.event_id} 推进到下一轮失败")
+                    
+                    # 有事件处理时，重置睡眠时间为初始值
+                    sleep_time = 5
                 else:
+                    logger.debug("没有待推进到下一轮的事件，等待中...")
+                    
+                    # 没有事件时，逐渐增加睡眠时间，但不超过最大值
                     sleep_time = min(sleep_time * 1.5, max_sleep_time)
                 
+                # 使用动态调整的睡眠时间
                 time.sleep(sleep_time)
-            except pika.exceptions.AMQPConnectionError as amqp_err:
-                logger.error(f"专家 Event Next Round Worker RabbitMQ连接错误: {amqp_err}.")
-                time.sleep(10)
             except Exception as e:
                 logger.error(f"【轮次推进】处理事件轮次推进时出错: {str(e)}")
-                logger.error(traceback.format_exc())
-                time.sleep(config.EXPERT_EVENT_NEXT_ROUND_INTERVAL_ERROR or 5)
+                time.sleep(5)  # 错误发生时使用较长的睡眠时间
 
 def run_expert():
     """运行_expert服务"""
     logger.info("启动_expert服务...")
+    
+    # 导入Flask应用
     from main import app
+    
+    # 创建并启动工作线程
+    threads = []
+    
+    # 线程1：处理执行结果摘要
+    t1 = threading.Thread(target=execution_summary_worker, args=(app,))
+    t1.daemon = True
+    threads.append(t1)
+    
+    # 线程2：处理命令状态更新
+    t2 = threading.Thread(target=command_status_worker, args=(app,))
+    t2.daemon = True
+    threads.append(t2)
+    
+    # 线程3：处理任务状态更新
+    t3 = threading.Thread(target=task_status_worker, args=(app,))
+    t3.daemon = True
+    threads.append(t3)
+    
+    # 线程4：处理事件轮次状态更新（处理中 -> 任务完成）
+    t4 = threading.Thread(target=event_round_status_worker, args=(app,))
+    t4.daemon = True
+    threads.append(t4)
+    
+    # 线程5：处理事件总结开始生成（任务完成 -> 待总结）
+    t5 = threading.Thread(target=event_summarizing_worker, args=(app,))
+    t5.daemon = True
+    threads.append(t5)
+    
+    # 线程6：处理事件总结生成（待总结 -> 已总结 -> 轮次完成）
+    t6 = threading.Thread(target=event_summary_worker, args=(app,))
+    t6.daemon = True
+    threads.append(t6)
+    
+    # 线程7：处理事件轮次推进（轮次完成 -> 待处理(下一轮)）
+    t7 = threading.Thread(target=event_next_round_worker, args=(app,))
+    t7.daemon = True
+    threads.append(t7)
+    
+    # 启动所有线程
+    for t in threads:
+        t.start()
+    
+    # 等待所有线程结束（实际上不会结束，除非程序被终止）
+    for t in threads:
+        t.join()
 
-    publisher = None
-    try:
-        publisher = RabbitMQPublisher()
-        logger.info("RabbitMQ Publisher for Expert Service initialized.")
-
-        threads = []
-        
-        # Define workers that need publisher
-        workers_with_publisher_map = {
-            "ExecutionSummaryWorker": (execution_summary_worker, app, publisher),
-            "EventSummaryWorker": (event_summary_worker, app, publisher),
-            "EventNextRoundWorker": (event_next_round_worker, app, publisher)
-        }
-        
-        # Define workers that do not need publisher (based on current logic)
-        workers_no_publisher_map = {
-            "CommandStatusWorker": (command_status_worker, app),
-            "TaskStatusWorker": (task_status_worker, app),
-            "EventRoundStatusWorker": (event_round_status_worker, app),
-            "EventSummarizingWorker": (event_summarizing_worker, app)
-        }
-
-        for name, (target_func, *args) in workers_with_publisher_map.items():
-            thread = threading.Thread(target=target_func, args=args, name=name)
-            thread.daemon = True
-            threads.append(thread)
-            thread.start()
-            logger.info(f"{name} 线程已启动 (with publisher)")
-
-        for name, (target_func, *args) in workers_no_publisher_map.items():
-            thread = threading.Thread(target=target_func, args=args, name=name)
-            thread.daemon = True
-            threads.append(thread)
-            thread.start()
-            logger.info(f"{name} 线程已启动")
-        
-        while True:
-            time.sleep(3600)
-
-    except pika.exceptions.AMQPConnectionError as amqp_startup_err:
-        logger.critical(f"Expert服务启动失败：无法连接到RabbitMQ. Error: {amqp_startup_err}")
-        logger.critical(traceback.format_exc())
-    except KeyboardInterrupt:
-        logger.info("Expert服务被用户中断...")
-    except Exception as e_startup:
-        logger.critical(f"Expert服务启动时发生未知严重错误: {e_startup}")
-        logger.critical(traceback.format_exc())
-    finally:
-        if publisher:
-            logger.info("Expert服务正在关闭RabbitMQ publisher...")
-            publisher.close()
-        logger.info("Expert服务已停止或启动失败。")
-
-def advance_event_to_next_round(event_id, publisher: RabbitMQPublisher):
+def advance_event_to_next_round(event_id):
     """将事件推进到下一轮处理
     
     Args:
         event_id: 事件ID
-        publisher: RabbitMQPublisher instance
     
     Returns:
         bool: 是否成功推进到下一轮
     """
+    # 刷新会话，确保获取最新数据
     db.session.expire_all()
+    
+    # 获取事件
     event = Event.query.filter_by(event_id=event_id).first()
     if not event:
         logger.warning(f"事件不存在: {event_id}")
         return False
     
+    # 只有round_finished状态的事件才能推进到下一轮
     if event.status != 'round_finished':
         logger.warning(f"事件状态不是round_finished，无法推进到下一轮: {event_id}, 当前状态: {event.status}")
         return False
     
+    # 获取当前轮次
     current_round = event.current_round or 1
+    
+    # 检查是否已达到最大轮次
     if current_round >= config.EVENT_MAX_ROUND:
         logger.warning(f"事件已达到最大轮次，无法推进到下一轮: {event_id}, 当前轮次: {current_round}")
         return False
     
-    previous_round_id = event.current_round
+    # 更新轮次和状态
     event.current_round = current_round + 1
-    event.status = 'pending'
+    event.status = 'pending'  # 设置为待处置状态
+    
     db.session.commit()
     logger.info(f"事件推进到下一轮: {event_id}, 新轮次: {event.current_round}")
-
-    # 消息: 事件进入下一轮
-    next_round_content = {
-        "event_id": event.event_id,
-        "event_name": event.event_name,
-        "previous_round_id": previous_round_id,
-        "new_round_id": event.current_round,
-        "text": f"事件 '{event.event_name}' (ID: {event.event_id}) 已进入第 {event.current_round} 轮处理。"
-    }
-    db_msg_next_round = create_standard_message(
-        event_id=event.event_id, message_from='system',
-        round_id=event.current_round, 
-        message_type='event_next_round_initiated',
-        content_data=next_round_content
-    )
-    if db_msg_next_round and publisher:
-        try:
-            routing_key = f"notifications.frontend.{event.event_id}.system.{db_msg_next_round.message_type}"
-            publisher.publish_message(message_body=db_msg_next_round.to_dict(), routing_key=routing_key)
-            logger.info(f"消息 [Event Next Round] {db_msg_next_round.message_id} 已发布. RK: {routing_key}")
-        except Exception as e_pub: 
-            logger.error(f"发布事件进入下一轮消息失败: {e_pub}")
-
+    
     return True
 
-def resolve_event(event_id, publisher: RabbitMQPublisher, resolution_note=None):
+def resolve_event(event_id, resolution_note=None):
     """人工解决事件
     
     Args:
         event_id: 事件ID
-        publisher: RabbitMQPublisher instance
         resolution_note: 解决说明
     
     Returns:
         bool: 是否成功解决事件
     """
+    # 获取事件
     event = Event.query.filter_by(event_id=event_id).first()
     if not event:
         logger.warning(f"事件不存在: {event_id}")
         return False
     
-    original_status = event.status
+    # 更新事件状态为已解决
     event.status = 'resolved'
     
+    # 如果有解决说明，可以保存到事件的上下文中
     if resolution_note:
+        # 尝试解析现有上下文
         try:
-            context = json.loads(event.context) if event.context and isinstance(event.context, str) else (event.context if isinstance(event.context, dict) else {})
-        except json.JSONDecodeError:
+            context = json.loads(event.context) if event.context else {}
+        except:
             context = {}
+        
+        # 添加解决说明
         context['resolution_note'] = resolution_note
         event.context = json.dumps(context)
     
-    if hasattr(event, 'resolved_at'):
-        event.resolved_at = datetime.utcnow()
-
     db.session.commit()
     logger.info(f"事件已人工解决: {event_id}")
-
-    # 消息: 事件已解决
-    resolved_content = {
-        "event_id": event.event_id,
-        "event_name": event.event_name,
-        "resolution_note": resolution_note or "事件已解决",
-        "resolved_at": event.resolved_at.isoformat() if hasattr(event, 'resolved_at') and event.resolved_at else datetime.utcnow().isoformat(),
-        "text": f"事件 '{event.event_name}' (ID: {event.event_id}) 已解决。备注: {resolution_note or '无'}"
-    }
-    db_msg_resolved = create_standard_message(
-        event_id=event.event_id, message_from='system',
-        round_id=event.current_round,
-        message_type='event_resolved',
-        content_data=resolved_content
-    )
-    if db_msg_resolved and publisher:
-        try:
-            routing_key = f"notifications.frontend.{event.event_id}.system.{db_msg_resolved.message_type}"
-            publisher.publish_message(message_body=db_msg_resolved.to_dict(), routing_key=routing_key)
-            logger.info(f"消息 [Event Resolved] {db_msg_resolved.message_id} 已发布. RK: {routing_key}")
-        except Exception as e_pub: 
-            logger.error(f"发布事件解决消息失败: {e_pub}")
-
+    
+    # 生成最终的事件总结
+    # 首先更新事件状态为to_be_summarized
     event.status = 'to_be_summarized'
     db.session.commit()
-    logger.info(f"事件 {event_id} 解决后，标记为 'to_be_summarized' 以生成最终总结。")
     
-    generate_event_summary(event_id, publisher)
+    # 生成总结
+    generate_event_summary(event_id)
     
     return True
 
@@ -1246,6 +1157,7 @@ def debug_event_status(event_id):
     Args:
         event_id: 事件ID
     """
+    # 刷新会话，确保获取最新数据
     db.session.expire_all()
     
     event = Event.query.filter_by(event_id=event_id).first()
@@ -1255,8 +1167,10 @@ def debug_event_status(event_id):
     
     logger.info(f"【事件诊断】事件ID: {event_id}, 状态: {event.status}, 轮次: {event.current_round}")
     
+    # 查询事件的所有任务
     tasks = Task.query.filter_by(event_id=event_id).all()
     logger.info(f"【事件诊断】事件 {event_id} 有 {len(tasks)} 个任务")
     
+    # 查询事件的所有摘要
     summaries = Summary.query.filter_by(event_id=event_id).all()
     logger.info(f"【事件诊断】事件 {event_id} 有 {len(summaries)} 个摘要") 

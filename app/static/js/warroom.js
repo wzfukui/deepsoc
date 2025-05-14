@@ -365,23 +365,11 @@ function setupSocketEventListeners() {
     socket.on('new_message', (message) => {
         console.log('%c[WebSocket] 收到新消息:', 'background: #4CAF50; color: white; padding: 2px 5px; border-radius: 3px;', message);
         
-        // 检查消息格式
-        if (!message || !message.id) {
-            console.error('%c[WebSocket] 收到的消息格式无效:', 'color: #F44336;', message);
-            return;
-        }
-        
-        // 检查消息ID
-        console.log(`%c[WebSocket] 消息ID: ${message.id}, 当前最后消息ID: ${lastMessageId}`, 'color: #4CAF50;');
-        
-        if (!displayedMessages.has(message.id)) {
-            console.log(`%c[WebSocket] 添加新消息 ID:${message.id}, 类型:${message.message_type}, 来源:${message.message_from}`, 'color: #4CAF50;');
-            addMessage(message);
-            displayedMessages.add(message.id);
-            lastMessageId = Math.max(lastMessageId, message.id);
+        // 直接调用新的 addMessage 函数，它会处理去重和状态更新
+        if (addMessage(message)) {
             scrollToBottom();
             
-            // 如果有新任务或状态变化，刷新统计和事件详情
+            // 如果有新任务或状态变化，刷新统计和事件详情 (此逻辑保留)
             if (message.message_type === 'llm_response' || 
                 message.message_type === 'command_result' ||
                 message.message_type === 'execution_summary' ||
@@ -389,8 +377,6 @@ function setupSocketEventListeners() {
                 fetchEventStats();
                 fetchEventDetails();
             }
-        } else {
-            console.log(`%c[WebSocket] 忽略重复消息 ID:${message.id}`, 'color: #FFA500;');
         }
     });
     
@@ -753,10 +739,9 @@ async function fetchEventMessages() {
     try {
         updateLoadingState('messages', true);
         
-        // 获取所有消息或从上次ID开始
         const lastId = messagesData.length > 0 ? Math.max(...messagesData.map(m => m.id)) : 0;
         
-        const response = await fetch(`/api/event/${eventId}/messages?last_id=${lastId}`, {
+        const response = await fetch(`/api/event/${eventId}/messages?last_message_db_id=${lastId}`, {
             headers: getAuthHeaders(),
             credentials: 'include'
         });
@@ -768,17 +753,16 @@ async function fetchEventMessages() {
         const data = await response.json();
         
         if (data.status === 'success') {
-            // 添加新消息
+            let newMessagesAdded = false;
             if (data.data.length > 0) {
                 for (const message of data.data) {
-                    // 检查是否已存在相同ID的消息
-                    if (!messagesData.some(m => m.id === message.id)) {
-                        messagesData.push(message);
-                        addMessage(message);
+                    // 直接调用新的 addMessage 函数，它会处理去重和状态更新
+                    if (addMessage(message)) {
+                        newMessagesAdded = true;
                     }
                 }
-                
-                // 滚动到底部
+            }
+            if (newMessagesAdded) {
                 scrollToBottom();
             }
         }
@@ -822,9 +806,30 @@ function updateEventStats(stats) {
 
 // 添加消息
 function addMessage(message) {
-    // 将消息存储到映射中，用于源码查看
-    messagesMap.set(message.message_id, message);
-    
+    // 检查1: 验证消息和其数据库 ID
+    if (!message || typeof message.id === 'undefined') {
+        console.error('[addMessage] 消息对象无效或缺少数据库ID:', message);
+        return false; // 表示消息未添加
+    }
+
+    // 检查2: 使用数据库ID的Set进行去重
+    if (displayedMessages.has(message.id)) {
+        console.log(`%c[addMessage] 忽略重复消息 ID: ${message.id}`, 'color: #FFA500;');
+        return false; // 表示消息是重复的，未添加
+    }
+
+    console.log(`%c[addMessage] 添加新消息 ID:${message.id}, 类型:${message.message_type}, 来源:${message.message_from}`, 'color: #4CAF50;');
+
+    // 1. 更新内部追踪结构
+    displayedMessages.add(message.id);
+    messagesData.push(message);
+    messagesMap.set(message.message_id, message); // 使用业务 message_id 作为 key
+
+    // 2. 更新 lastMessageId (虽然其直接用途可能需要重新评估，但为保持一致性暂时保留)
+    // lastMessageId = Math.max(lastMessageId, message.id);
+    // 注意: fetchEventMessages 中计算 lastId 的方式 (从 messagesData 获取最大值) 更可靠
+
+    // 3. 创建DOM元素并追加 (以下为原 addMessage 中的渲染逻辑)
     const messageElement = document.createElement('div');
     
     // 设置消息样式
@@ -841,21 +846,15 @@ function addMessage(message) {
         messageClass += ' message-expert';
     } else if (message.message_from === 'system') {
         messageClass += ' message-system';
-        
-        // 如果是llm_request类型的系统消息，添加右对齐样式
         if (message.message_type === 'llm_request') {
             messageClass += ' message-llm-request';
         }
     } else {
         messageClass += ' message-user';
     }
-    
     messageElement.className = messageClass;
     
-    // 构建消息内容
     let messageContent = '';
-    
-    // 消息头部
     messageContent += `
         <div class="message-header">
             <span class="message-sender">${getRoleName(message.message_from)}</span>
@@ -867,96 +866,47 @@ function addMessage(message) {
             </div>
         </div>
     `;
-    
-    // 消息内容
     messageContent += '<div class="message-content">';
-    
-    // 处理llm_request类型的消息
+
+    // (此处省略了原 addMessage 函数中根据 message.message_type 等处理不同消息展示的详细HTML构建逻辑)
+    // (您需要将原 addMessage 函数中从 "处理llm_request类型的消息" 开始到 "普通消息" 的那一大段 if/else if/else 逻辑粘贴到这里)
+    // 为了简洁，暂时用一个占位符表示，实际替换时请务必包含完整的消息内容构建逻辑
+    // Placeholder for detailed message content rendering logic from original addMessage:
     if (message.message_type === 'llm_request') {
-        // 显示llm_request消息内容
         let requestContent = '';
-        
-        // 确定数据来源（新格式或旧格式）
         if (typeof message.message_content === 'object') {
             if (message.message_content.type === 'llm_request' && message.message_content.data) {
-                // 新的标准化消息格式
                 requestContent = message.message_content.data;
             } else if (message.message_content.data) {
-                // 直接使用data字段
                 requestContent = message.message_content.data;
             } else {
-                // 回退到整个对象的字符串表示
                 requestContent = JSON.stringify(message.message_content);
             }
         } else {
-            // 如果是字符串，直接使用
             requestContent = message.message_content;
         }
-        
-        messageContent += `
-            <div class="llm-request-notification">
-                <p>${requestContent}</p>
-            </div>
-        `;
+        messageContent += `<div class="llm-request-notification"><p>${requestContent}</p></div>`;
     } else if (message.message_type === 'llm_response') {
         const content = message.message_content;
-        let data = null;
-        
-        // 确定数据来源（新格式或旧格式）
-        if (content.type === 'llm_response') {
-            // 新的标准化消息格式
-            data = content.data;
-        } else {
-            // 旧的消息格式
-            data = content;
-        }
-        
-        // 根据角色和消息类型处理不同的展示方式
+        let data = (content.type === 'llm_response') ? content.data : content;
         if (message.message_from === '_captain') {
-            // 安全指挥官 - 任务分配
             if (data.response_type === 'TASK') {
                 messageContent += `<p>${data.response_text || '分配任务'}</p>`;
-                
                 if (data.tasks && data.tasks.length > 0) {
                     messageContent += '<div class="task-list">';
                     data.tasks.forEach(task => {
                         const taskType = getTaskTypeText(task.task_type);
                         let assignee_name = '未指定';
                         let assignee_role = '';
-                        
-                        // 根据任务分配的角色确定名称和角色类型
-                        if (task.task_assignee === '_manager') {
-                            assignee_name = '安全管理员';
-                            assignee_role = 'manager';
-                        } else if (task.task_assignee === '_operator') {
-                            assignee_name = '安全工程师';
-                            assignee_role = 'operator';
-                        } else if (task.task_assignee === '_executor') {
-                            assignee_name = '执行器';
-                            assignee_role = 'executor';
-                        } else if (task.task_assignee === '_expert') {
-                            assignee_name = '安全专家';
-                            assignee_role = 'expert';
-                        } else if (task.task_assignee === '_coordinator') {
-                            assignee_name = '协调员';
-                            assignee_role = 'coordinator';
-                        } else if (task.task_assignee === '_analyst') {
-                            assignee_name = '分析员';
-                            assignee_role = 'analyst';
-                        } else if (task.task_assignee === '_responder') {
-                            assignee_name = '处置员';
-                            assignee_role = 'responder';
-                        }
-                        
-                        // 显示任务ID（截取前6位以简化显示）
+                        if (task.task_assignee === '_manager') { assignee_name = '安全管理员'; assignee_role = 'manager'; }
+                        else if (task.task_assignee === '_operator') { assignee_name = '安全工程师'; assignee_role = 'operator'; }
+                        else if (task.task_assignee === '_executor') { assignee_name = '执行器'; assignee_role = 'executor'; }
+                        else if (task.task_assignee === '_expert') { assignee_name = '安全专家'; assignee_role = 'expert'; }
+                        else if (task.task_assignee === '_coordinator') { assignee_name = '协调员'; assignee_role = 'coordinator'; }
+                        else if (task.task_assignee === '_analyst') { assignee_name = '分析员'; assignee_role = 'analyst'; }
+                        else if (task.task_assignee === '_responder') { assignee_name = '处置员'; assignee_role = 'responder'; }
                         const shortTaskId = task.task_id ? String(task.task_id).substring(0, 8) : '';
-                        
-                        messageContent += `<div class="task-item task-type-${task.task_type}">
-                            <span class="task-assignee role-${assignee_role}">@${assignee_name}</span>
-                            <span class="task-name">${task.task_name}</span>
-                            <span class="task-type">${taskType}</span>
-                            <span class="task-id">${shortTaskId}</span>
-                        </div>`;
+                        messageContent += `<div class="task-item task-type-${task.task_type}"><span class="task-assignee role-${assignee_role}">@${assignee_name}</span> <span class="task-name">${task.task_name}</span> <span class="task-type">${taskType}</span> <span class="task-id">${shortTaskId}</span></div>`;
                     });
                     messageContent += '</div>';
                 }
@@ -964,87 +914,53 @@ function addMessage(message) {
                 messageContent += `<p>${data.response_text || JSON.stringify(data)}</p>`;
             }
         } else if (message.message_from === '_manager') {
-            // 安全管理员 - 动作分配
             if (data.response_type === 'ACTION') {
                 messageContent += `<p>${data.response_text || '安排动作'}</p>`;
-                
                 if (data.actions && data.actions.length > 0) {
                     messageContent += '<div class="action-list">';
                     data.actions.forEach(action => {
                         const actionType = action.action_type || 'default';
                         let assignee_name = '未指定';
                         let assignee_role = '';
-                        
-                        // 根据动作分配的角色确定名称和角色类型
-                        if (action.action_assignee === '_manager') {
-                            assignee_name = '安全管理员';
-                            assignee_role = 'manager';
-                        } else if (action.action_assignee === '_operator') {
-                            assignee_name = '安全工程师';
-                            assignee_role = 'operator';
-                        } else if (action.action_assignee === '_executor') {
-                            assignee_name = '执行器';
-                            assignee_role = 'executor';
-                        } else if (action.action_assignee === '_expert') {
-                            assignee_name = '安全专家';
-                            assignee_role = 'expert';
-                        }
-                        
-                        // 显示任务ID和动作ID（截取前6位以简化显示）
+                        if (action.action_assignee === '_manager') { assignee_name = '安全管理员'; assignee_role = 'manager'; }
+                        else if (action.action_assignee === '_operator') { assignee_name = '安全工程师'; assignee_role = 'operator'; }
+                        else if (action.action_assignee === '_executor') { assignee_name = '执行器'; assignee_role = 'executor'; }
+                        else if (action.action_assignee === '_expert') { assignee_name = '安全专家'; assignee_role = 'expert'; }
                         const shortTaskId = action.task_id ? String(action.task_id).substring(0, 8) : '';
                         const shortActionId = action.action_id ? String(action.action_id).substring(0, 8) : '';
                         const idInfo = `${shortTaskId}->${shortActionId}`;
-                        
-                        messageContent += `<div class="action-item action-type-${actionType}">
-                            <span class="action-assignee role-${assignee_role}">@${assignee_name}</span>
-                            <span class="action-name">${action.action_name}</span>
-                            <span class="action-id">${idInfo}</span>
-                        </div>`;
+                        messageContent += `<div class="action-item action-type-${actionType}"><span class="action-assignee role-${assignee_role}">@${assignee_name}</span> <span class="action-name">${action.action_name}</span> <span class="action-id">${idInfo}</span></div>`;
                     });
                     messageContent += '</div>';
                 }
             } else {
                 messageContent += `<p>${data.response_text || JSON.stringify(data)}</p>`;
             }
-        } else {
-            // 其他角色的llm_response消息
+        } else { // Other roles llm_response
             if (data.response_type === 'TASK') {
                 messageContent += `<p>${data.response_text || '分配任务'}</p>`;
-                
                 if (data.tasks && data.tasks.length > 0) {
                     messageContent += '<pre>';
-                    data.tasks.forEach(task => {
-                        messageContent += `- ${task.task_name} (${getTaskTypeText(task.task_type)})\n`;
-                    });
+                    data.tasks.forEach(task => { messageContent += `- ${task.task_name} (${getTaskTypeText(task.task_type)})\n`; });
                     messageContent += '</pre>';
                 }
             } else if (data.response_type === 'ACTION') {
                 messageContent += `<p>${data.response_text || '安排动作'}</p>`;
-                
                 if (data.actions && data.actions.length > 0) {
                     messageContent += '<pre>';
-                    data.actions.forEach(action => {
-                        messageContent += `- ${action.action_name} (任务: ${action.task_id})\n`;
-                    });
+                    data.actions.forEach(action => { messageContent += `- ${action.action_name} (任务: ${action.task_id})\n`; });
                     messageContent += '</pre>';
                 }
             } else if (data.response_type === 'COMMAND') {
                 messageContent += `<p>${data.response_text || '准备命令'}</p>`;
-                
                 if (data.commands && data.commands.length > 0) {
                     messageContent += '<div class="command-list">';
                     data.commands.forEach(command => {
-                        // 显示任务ID、动作ID和命令ID（截取前6位以简化显示）
                         const shortTaskId = command.task_id ? String(command.task_id).substring(0, 8) : '';
                         const shortActionId = command.action_id ? String(command.action_id).substring(0, 8) : '';
                         const shortCommandId = command.command_id ? String(command.command_id).substring(0, 8) : '';
                         const idInfo = `${shortTaskId}->${shortActionId}->${shortCommandId}`;
-                        
-                        messageContent += `<div class="command-item command-type-${command.command_type || 'default'}">
-                            <span class="command-name">${command.command_name}</span>
-                            <span class="command-type">${command.command_type || ''}</span>
-                            <span class="command-id">${idInfo}</span>
-                        </div>`;
+                        messageContent += `<div class="command-item command-type-${command.command_type || 'default'}"><span class="command-name">${command.command_name}</span> <span class="command-type">${command.command_type || ''}</span> <span class="command-id">${idInfo}</span></div>`;
                     });
                     messageContent += '</div>';
                 }
@@ -1053,135 +969,64 @@ function addMessage(message) {
             }
         }
     } else if (message.message_type === 'command_result') {
-        // 命令执行结果
         const content = message.message_content;
-        let data = null;
-        
-        // 确定数据来源（新格式或旧格式）
-        if (content.type === 'command_result') {
-            // 新的标准化消息格式
-            data = content.data;
-        } else {
-            // 旧的消息格式
-            data = content;
-        }
-        
+        let data = (content.type === 'command_result') ? content.data : content;
         if (message.message_from === '_executor') {
-            // 执行器 - 可折叠的JSON结果
             messageContent += `<p>命令 "${data.command_name}" 执行${data.status === 'completed' ? '成功' : '失败'}</p>`;
-            
-            // 如果有AI摘要，使用markdown渲染
             if (data.ai_summary) {
-                messageContent += `
-                    <div class="ai-summary markdown-content">
-                        ${marked.parse(data.ai_summary)}
-                    </div>
-                `;
+                messageContent += `<div class="ai-summary markdown-content">${marked.parse(data.ai_summary)}</div>`;
             }
-            
-            // 可折叠的JSON结果
             if (data.result) {
                 const resultId = `result-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-                messageContent += `
-                    <div class="collapsible-result">
-                        <div class="collapsible-header" onclick="toggleCollapsible('${resultId}')">
-                            <span class="collapse-icon">▶</span> 查看详细结果
-                        </div>
-                        <div id="${resultId}" class="collapsible-content collapsed">
-                            <pre>${JSON.stringify(data.result, null, 2)}</pre>
-                        </div>
-                    </div>
-                `;
+                messageContent += `<div class="collapsible-result"><div class="collapsible-header" onclick="toggleCollapsible('${resultId}')"><span class="collapse-icon">▶</span> 查看详细结果</div><div id="${resultId}" class="collapsible-content collapsed"><pre>${JSON.stringify(data.result, null, 2)}</pre></div></div>`;
             }
         } else {
-            // 其他角色的命令结果消息
             messageContent += `<p>命令 "${data.command_name}" 执行${data.status === 'completed' ? '成功' : '失败'}</p>`;
-            
             if (data.result) {
                 messageContent += `<pre>${JSON.stringify(data.result, null, 2)}</pre>`;
             }
         }
     } else if (message.message_type === 'execution_summary') {
-        // 执行结果摘要
         const content = message.message_content;
-        let data = null;
-        
-        // 确定数据来源（新格式或旧格式）
-        if (content.type === 'execution_summary') {
-            // 新的标准化消息格式
-            data = content.data;
-        } else {
-            // 旧的消息格式
-            data = content;
-        }
-        
+        let data = (content.type === 'execution_summary') ? content.data : content;
         if (message.message_from === '_expert' && data.ai_summary) {
-            // 执行器的摘要 - 使用markdown渲染
-            messageContent += `
-                <p>执行结果摘要:</p>
-                <div class="ai-summary markdown-content">
-                    ${marked.parse(data.ai_summary)}
-                </div>
-            `;
+            messageContent += `<p>执行结果摘要:</p><div class="ai-summary markdown-content">${marked.parse(data.ai_summary)}</div>`;
         } else {
-            // 其他角色的摘要
             messageContent += `<p>执行结果摘要:</p><p>${data.ai_summary}</p>`;
         }
     } else if (message.message_type === 'event_summary') {
-        // 事件总结
         const content = message.message_content;
-        let data = null;
-        
-        // 确定数据来源（新格式或旧格式）
-        if (content.type === 'event_summary') {
-            // 新的标准化消息格式
-            data = content.data;
-        } else {
-            // 旧的消息格式
-            data = content;
-        }
-        
+        let data = (content.type === 'event_summary') ? content.data : content;
         if (message.message_from === '_expert') {
-            // 安全专家的总结 - 使用markdown渲染并默认展开
-            messageContent += `
-                <p>事件总结 (轮次 ${data.round_id}):</p>
-                <div class="event-summary markdown-content">
-                    ${marked.parse(data.event_summary)}
-                </div>
-            `;
+            messageContent += `<p>事件总结 (轮次 ${data.round_id}):</p><div class="event-summary markdown-content">${marked.parse(data.event_summary)}</div>`;
         } else {
-            // 其他角色的总结
             messageContent += `<p>事件总结 (轮次 ${data.round_id}):</p><p>${data.event_summary}</p>`;
         }
     } else if (message.message_type === 'system_notification') {
-        // 系统通知消息
         const content = message.message_content;
-        let data = null;
-        
-        // 确定数据来源（新格式或旧格式）
-        if (content.type === 'system_notification') {
-            // 新的标准化消息格式
-            data = content.data;
-        } else {
-            // 旧的消息格式
-            data = content;
-        }
-        
-        // 显示系统通知
-        messageContent += `
-            <div class="system-notification">
-                <p>${data.response_text}</p>
-            </div>
-        `;
+        let data = (content.type === 'system_notification') ? content.data : content;
+        messageContent += `<div class="system-notification"><p>${data.response_text}</p></div>`;
     } else {
-        // 普通消息
-        messageContent += `<p>${message.message_content}</p>`;
+        // 普通消息，确保 message.message_content 不是对象。如果是对象，尝试提取 data.text 或 stringify
+        let plainTextContent = message.message_content;
+        if (typeof plainTextContent === 'object' && plainTextContent !== null) {
+            if (plainTextContent.data && typeof plainTextContent.data.text === 'string') {
+                plainTextContent = plainTextContent.data.text;
+            } else if (typeof plainTextContent.text === 'string') {
+                 plainTextContent = plainTextContent.text;
+            } else {
+                plainTextContent = JSON.stringify(plainTextContent);
+            }
+        }
+        messageContent += `<p>${plainTextContent}</p>`;
     }
-    
+    // End of placeholder for detailed message content rendering logic
+
     messageContent += '</div>';
-    
     messageElement.innerHTML = messageContent;
     elements.chatMessages.appendChild(messageElement);
+
+    return true; // 表示消息已成功添加并渲染
 }
 
 // 添加折叠/展开功能

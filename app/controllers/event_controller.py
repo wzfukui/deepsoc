@@ -88,25 +88,25 @@ def get_event_messages(event_id):
     """获取事件相关的所有消息"""
     from app.models import Message
     
-    # 获取last_id参数，用于增量获取消息
-    last_id = request.args.get('last_id', 0, type=int)
+    # 获取 last_message_db_id 参数，用于增量获取消息
+    last_message_db_id = request.args.get('last_message_db_id', 0, type=int)
     
-    # 获取role参数，用于按角色筛选消息
+    # 获取role参数，用于按角色筛选消息 (此功能保留)
     role = request.args.get('role')
     
     # 构建查询
     query = Message.query.filter_by(event_id=event_id)
     
-    # 如果指定了last_id，则只获取更新的消息
-    if last_id > 0:
-        query = query.filter(Message.id > last_id)
+    # 如果指定了 last_message_db_id，则只获取ID更大的消息
+    if last_message_db_id > 0:
+        query = query.filter(Message.id > last_message_db_id)
     
     # 如果指定了role，则按角色筛选
     if role:
         query = query.filter_by(message_from=role)
     
-    # 获取消息并排序
-    messages = query.order_by(Message.created_at.asc()).all()
+    # 获取消息并按数据库ID升序排序
+    messages = query.order_by(Message.id.asc()).all()
     
     return jsonify({
         'status': 'success',
