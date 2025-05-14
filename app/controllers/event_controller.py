@@ -31,7 +31,7 @@ def create_event():
         context=data.get('context', ''),
         source=data.get('source', 'manual'),
         severity=data.get('severity', 'medium'),
-        status='pending'
+        event_status='pending'
     )
     
     db.session.add(event)

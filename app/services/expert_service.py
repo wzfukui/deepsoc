@@ -408,8 +408,8 @@ def check_and_update_event_tasks_completion(event_id, round_id):
         return False
     
     # 检查事件当前状态
-    if event.status != 'processing':
-        logger.info(f"事件 {event_id} 当前状态不是processing，而是 {event.status}，跳过检查")
+    if event.event_status != 'processing':
+        logger.info(f"事件 {event_id} 当前状态不是processing，而是 {event.event_status}，跳过检查")
         return False
     
     # 检查是否所有任务都已完成
@@ -437,17 +437,17 @@ def check_and_update_event_tasks_completion(event_id, round_id):
     event = Event.query.filter_by(event_id=event_id).first()
     
     # 如果事件在此期间被更新，再次检查状态
-    if not event or event.status != 'processing':
-        logger.info(f"事件 {event_id} 状态已被其他进程更新，当前状态: {event.status if event else '不存在'}，跳过更新")
+    if not event or event.event_status != 'processing':
+        logger.info(f"事件 {event_id} 状态已被其他进程更新，当前状态: {event.event_status if event else '不存在'}，跳过更新")
         return False
     
     # 更新事件状态
     if has_failed:
-        event.status = 'failed'
+        event.event_status = 'failed'
         logger.info(f"事件 {event_id} 有失败的任务，将状态设置为 failed")
     else:
         # 当前轮次的任务已完成，将状态设置为tasks_completed
-        event.status = 'tasks_completed'
+        event.event_status = 'tasks_completed'
         logger.info(f"事件 {event_id} 轮次 {round_id} 所有任务已完成，将状态设置为 tasks_completed")
     
     db.session.commit()
@@ -464,7 +464,7 @@ def get_events_for_summarizing():
     db.session.expire_all()
     
     # 查询tasks_completed状态的事件
-    events = Event.query.filter_by(status='tasks_completed').all()
+    events = Event.query.filter_by(event_status='tasks_completed').all()
     
     if events:
         logger.info(f"找到 {len(events)} 个待开始生成总结的事件，状态: tasks_completed")
@@ -481,7 +481,7 @@ def get_events_to_be_summarized():
     db.session.expire_all()
     
     # 查询to_be_summarized状态的事件
-    events = Event.query.filter_by(status='to_be_summarized').all()
+    events = Event.query.filter_by(event_status='to_be_summarized').all()
     
     if events:
         logger.info(f"找到 {len(events)} 个待生成总结的事件，状态: to_be_summarized")
@@ -489,7 +489,7 @@ def get_events_to_be_summarized():
             debug_event_status(event.event_id)
     
     # 进行诊断，检查round_finished状态的事件
-    round_finished_events = Event.query.filter_by(status='round_finished').all()
+    round_finished_events = Event.query.filter_by(event_status='round_finished').all()
     if round_finished_events:
         logger.warning(f"【事件诊断】发现 {len(round_finished_events)} 个round_finished状态的事件")
         for event in round_finished_events:
@@ -507,7 +507,7 @@ def get_events_for_next_round():
     db.session.expire_all()
     
     # 查询round_finished状态的事件
-    events = Event.query.filter_by(status='round_finished').all()
+    events = Event.query.filter_by(event_status='round_finished').all()
     
     if events:
         logger.info(f"找到 {len(events)} 个待推进到下一轮的事件，状态: round_finished")
@@ -520,9 +520,9 @@ def get_events_for_next_round():
     
     status_counts = {}
     for event in all_events:
-        if event.status not in status_counts:
-            status_counts[event.status] = 0
-        status_counts[event.status] += 1
+        if event.event_status not in status_counts:
+            status_counts[event.event_status] = 0
+        status_counts[event.event_status] += 1
     
     for status, count in status_counts.items():
         logger.info(f"【事件诊断】状态为 {status} 的事件有 {count} 个")
@@ -546,12 +546,12 @@ def generate_event_summary(event_id, publisher: RabbitMQPublisher):
         return
     
     # 只有to_be_summarized状态的事件才生成总结
-    if event.status != 'to_be_summarized':
-        logger.info(f"事件状态不是to_be_summarized，不生成总结: {event_id}, 当前状态: {event.status}")
+    if event.event_status != 'to_be_summarized':
+        logger.info(f"事件状态不是to_be_summarized，不生成总结: {event_id}, 当前状态: {event.event_status}")
         return
 
     try:
-        logger.info(f"生成事件总结: {event_id}, 当前轮次: {event.current_round}, 状态: {event.status}")
+        logger.info(f"生成事件总结: {event_id}, 当前轮次: {event.current_round}, 状态: {event.event_status}")
         
         # 获取事件相关信息
         tasks = Task.query.filter_by(event_id=event_id).all()
@@ -605,7 +605,7 @@ def generate_event_summary(event_id, publisher: RabbitMQPublisher):
             "event_name": event.event_name,
             "event_message": event.message,
             "round_id": event.current_round,
-            "event_status": event.status,
+            "event_status": event.event_status,
             "tasks_data": tasks_data,
             "actions_data": actions_data,
             "commands_data": commands_data,
@@ -653,7 +653,7 @@ def generate_event_summary(event_id, publisher: RabbitMQPublisher):
                 """
         
         # 如果事件已解决，添加相关提示
-        if event.status == 'resolved':
+        if event.event_status == 'resolved':
             user_prompt += """
             您的输出格式有要求，必须为JSON格式，如下：
             ```json
@@ -707,8 +707,8 @@ def generate_event_summary(event_id, publisher: RabbitMQPublisher):
 
         db.session.expire_all()
         event = Event.query.filter_by(event_id=event_id).first()
-        if not event or event.status != 'to_be_summarized':
-            logger.warning(f"事件状态已改变，取消总结保存: {event_id}, 当前状态: {event.status if event else '不存在'}")
+        if not event or event.event_status != 'to_be_summarized':
+            logger.warning(f"事件状态已改变，取消总结保存: {event_id}, 当前状态: {event.event_status if event else '不存在'}")
             return
             
         # 创建总结记录
@@ -721,7 +721,7 @@ def generate_event_summary(event_id, publisher: RabbitMQPublisher):
         )
         db.session.add(summary)
         
-        event.status = 'summarized'
+        event.event_status = 'summarized'
         db.session.commit()
         logger.info(f"事件总结已保存: {event_id}")
         
@@ -738,7 +738,7 @@ def generate_event_summary(event_id, publisher: RabbitMQPublisher):
             # Re-fetch event in case session is in a weird state
             event_to_update = Event.query.filter_by(event_id=event_id).first()
             if event_to_update:
-                event_to_update.status = 'summary_failed'
+                event_to_update.event_status = 'summary_failed'
                 db.session.commit()
         except Exception as db_err:
             logger.error(f"尝试更新事件 {event_id} 状态为 'summary_failed' 时数据库错误: {db_err}")
@@ -804,7 +804,7 @@ def create_event_summary_message(event, summary_obj, publisher: RabbitMQPublishe
     content_data = {
         "event_id": event.event_id,
         "event_name": event.event_name,
-        "event_status": event.status,
+        "event_status": event.event_status,
         "round_id": event.current_round,
         "summary_id": summary_obj.summary_id,
         "event_summary": summary_obj.event_summary,
@@ -965,7 +965,7 @@ def event_summarizing_worker(app):
                     # 处理每个事件
                     for event in pending_events:
                         # 更新事件状态为to_be_summarized
-                        event.status = 'to_be_summarized'
+                        event.event_status = 'to_be_summarized'
                         db.session.commit()
                         logger.info(f"事件 {event.event_id} 状态已更新为 to_be_summarized")
                     
@@ -1008,13 +1008,13 @@ def event_summary_worker(app, publisher: RabbitMQPublisher):
                         if not event_after_summary:
                             continue
                         
-                        if event_after_summary.status == 'summarized':
-                            event_after_summary.status = 'round_finished'
+                        if event_after_summary.event_status == 'summarized':
+                            event_after_summary.event_status = 'round_finished'
                             if event_after_summary.current_round >= config.EVENT_MAX_ROUND:
-                                event_after_summary.status = 'completed'
-                                logger.info(f"事件已达到最大轮次，标记为已完成: {event_after_summary.event_id}, 最终状态: {event_after_summary.status}")
+                                event_after_summary.event_status = 'completed'
+                                logger.info(f"事件已达到最大轮次，标记为已完成: {event_after_summary.event_id}, 最终状态: {event_after_summary.event_status}")
                             db.session.commit()
-                            logger.info(f"事件 {event_after_summary.event_id} 状态已更新为 {event_after_summary.status}, 当前轮次: {event_after_summary.current_round}")
+                            logger.info(f"事件 {event_after_summary.event_id} 状态已更新为 {event_after_summary.event_status}, 当前轮次: {event_after_summary.current_round}")
                     sleep_time = config.EXPERT_EVENT_SUMMARY_INTERVAL
                 else:
                     sleep_time = min(sleep_time * 1.5, max_sleep_time)
@@ -1046,7 +1046,7 @@ def event_next_round_worker(app, publisher: RabbitMQPublisher):
                 if pending_events:
                     logger.info(f"【轮次推进】发现 {len(pending_events)} 个待推进到下一轮的事件")
                     for event in pending_events:
-                        if event.status == 'round_finished' and event.current_round <= config.EVENT_MAX_ROUND:
+                        if event.event_status == 'round_finished' and event.current_round <= config.EVENT_MAX_ROUND:
                             logger.info(f"【轮次推进】准备推进事件 {event.event_id} 从轮次 {event.current_round} 到下一轮")
                             result = advance_event_to_next_round(event.event_id, publisher)
                             if result:
@@ -1138,8 +1138,8 @@ def advance_event_to_next_round(event_id, publisher: RabbitMQPublisher):
         logger.warning(f"事件不存在: {event_id}")
         return False
     
-    if event.status != 'round_finished':
-        logger.warning(f"事件状态不是round_finished，无法推进到下一轮: {event_id}, 当前状态: {event.status}")
+    if event.event_status != 'round_finished':
+        logger.warning(f"事件状态不是round_finished，无法推进到下一轮: {event_id}, 当前状态: {event.event_status}")
         return False
     
     current_round = event.current_round or 1
@@ -1149,7 +1149,7 @@ def advance_event_to_next_round(event_id, publisher: RabbitMQPublisher):
     
     previous_round_id = event.current_round
     event.current_round = current_round + 1
-    event.status = 'pending'
+    event.event_status = 'pending'
     db.session.commit()
     logger.info(f"事件推进到下一轮: {event_id}, 新轮次: {event.current_round}")
 
@@ -1193,8 +1193,8 @@ def resolve_event(event_id, publisher: RabbitMQPublisher, resolution_note=None):
         logger.warning(f"事件不存在: {event_id}")
         return False
     
-    original_status = event.status
-    event.status = 'resolved'
+    original_status = event.event_status
+    event.event_status = 'resolved'
     
     if resolution_note:
         try:
@@ -1232,7 +1232,7 @@ def resolve_event(event_id, publisher: RabbitMQPublisher, resolution_note=None):
         except Exception as e_pub: 
             logger.error(f"发布事件解决消息失败: {e_pub}")
 
-    event.status = 'to_be_summarized'
+    event.event_status = 'to_be_summarized'
     db.session.commit()
     logger.info(f"事件 {event_id} 解决后，标记为 'to_be_summarized' 以生成最终总结。")
     
@@ -1253,7 +1253,7 @@ def debug_event_status(event_id):
         logger.warning(f"事件不存在: {event_id}")
         return
     
-    logger.info(f"【事件诊断】事件ID: {event_id}, 状态: {event.status}, 轮次: {event.current_round}")
+    logger.info(f"【事件诊断】事件ID: {event_id}, 状态: {event.event_status}, 轮次: {event.current_round}")
     
     tasks = Task.query.filter_by(event_id=event_id).all()
     logger.info(f"【事件诊断】事件 {event_id} 有 {len(tasks)} 个任务")

@@ -179,7 +179,7 @@ async function fetchEvents() {
             data.data.forEach(event => {
                 const createdAt = new Date(event.created_at).toLocaleString('zh-CN');
                 const eventLink = `/warroom/${event.event_id}`;
-                const statusBadge = getStatusBadge(event.status);
+                const statusBadge = getStatusBadge(event.event_status);
                 const severityBadge = getSeverityBadge(event.severity);
                 
                 html += `

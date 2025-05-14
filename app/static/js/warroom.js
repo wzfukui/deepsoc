@@ -727,8 +727,8 @@ function displayEventDetails(event) {
     const statusElement = elements.eventStatus;
     const statusText = statusElement.querySelector('.status-text');
     
-    statusElement.className = `event-status ${event.status}`;
-    statusText.textContent = getStatusText(event.status);
+    statusElement.className = `event-status ${event.event_status}`;
+    statusText.textContent = getStatusText(event.event_status);
     
     // 更新当前轮次
     elements.currentRound.textContent = event.current_round || 1;

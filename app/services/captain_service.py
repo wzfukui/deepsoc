@@ -22,7 +22,7 @@ def get_events_to_process():
     在新的状态流转设计中，Captain只处理pending状态的事件
     round_finished状态的事件由event_next_round_worker处理并转换为pending
     """
-    return Event.query.filter_by(status='pending').order_by(Event.created_at.asc()).first()  
+    return Event.query.filter_by(event_status='pending').order_by(Event.created_at.asc()).first()  
 
 def process_event(event, publisher: RabbitMQPublisher):
     """处理单个安全事件
@@ -57,7 +57,7 @@ def process_event(event, publisher: RabbitMQPublisher):
             logger.error(traceback.format_exc())
     
     # 更新事件状态为处理中
-    event.status = 'processing'
+    event.event_status = 'processing'
     db.session.commit()
     # 通知事件状态变更 (可选，如果需要非常实时的状态更新)
     # TBD: Decide if every status change needs MQ message, or if LLM response message is enough.
@@ -139,7 +139,7 @@ def process_event(event, publisher: RabbitMQPublisher):
                 logger.info(f"消息 [LLM Parse Err] {db_message_parse_err.message_id} 已发布到 RabbitMQ. RK: {routing_key}")
             except Exception as e_pub:
                 logger.error(f"发布消息 [LLM Parse Err] {db_message_parse_err.message_id} 到 RabbitMQ 失败: {e_pub}")
-        event.status = 'error_processing' # Set a specific error state
+        event.event_status = 'error_processing' # Set a specific error state
         db.session.commit()
         return
     
@@ -197,7 +197,7 @@ def process_event(event, publisher: RabbitMQPublisher):
         # Optional: Send a specific message about task creation if llm_response message is not sufficient
 
     elif response_type == 'MISSION_COMPLETE':
-        event.status = 'completed' # Captain decides event is completed based on LLM
+        event.event_status = 'completed' # Captain decides event is completed based on LLM
         db.session.commit()
         logger.info(f"事件 {event.event_id} 已被Captain标记为 'completed' 基于 LLM 响应.")
         # Send a message about event completion
@@ -218,7 +218,7 @@ def process_event(event, publisher: RabbitMQPublisher):
                 logger.error(f"发布消息 [Event Completed] {db_message_completed.message_id} 到 RabbitMQ 失败: {e_pub}")
 
     elif response_type == 'ROGER': # This seems like an error or simple ack from LLM
-        event.status = 'error_from_llm' # Or a more specific status
+        event.event_status = 'error_from_llm' # Or a more specific status
         db.session.commit()
         error_text = parsed_response.get('response_text', 'AI指挥官返回确认信息，但未分配任务或完成事件。')
         logger.error(f"事件 {event.event_id} 处理中，LLM 返回 'ROGER': {error_text}")
