@@ -49,7 +49,7 @@ class Event(db.Model):
     context = db.Column(db.Text)
     source = db.Column(db.String(64))
     severity = db.Column(db.String(32))
-    status = db.Column(db.String(32), default='pending')
+    event_status = db.Column(db.String(32), default='pending')
     current_round = db.Column(db.Integer, default=1)  # 当前处理轮次，默认为1
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -63,7 +63,7 @@ class Event(db.Model):
             'context': self.context,
             'source': self.source,
             'severity': self.severity,
-            'status': self.status,
+            'status': self.event_status,
             'current_round': self.current_round,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
