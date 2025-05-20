@@ -193,7 +193,8 @@ def _check_and_update_command_status(command_id: str, publisher: RabbitMQPublish
 
         if command.command_status in ['completed', 'failed']:
             logger.info(f"Command {command_id} already in a final state: {command.command_status}. Skipping.")
-            # It's possible this is called again, ensure action check is still triggered if command is final
+            # Release the row lock before propagating upwards
+            db.session.commit()
             if command.action_id:
                  _check_and_update_action_status(command.action_id, publisher)
             return
@@ -264,7 +265,8 @@ def _check_and_update_action_status(action_id: str, publisher: RabbitMQPublisher
 
         if action.action_status in ['completed', 'failed']:
             logger.info(f"Action {action_id} already in a final state: {action.action_status}. Skipping.")
-            if action.task_id: # Ensure task check is still triggered if action is final
+            db.session.commit()  # release lock before propagating
+            if action.task_id:  # Ensure task check is still triggered if action is final
                 _check_and_update_task_status(action.task_id, publisher)
             return
 
@@ -433,7 +435,7 @@ def check_and_update_event_tasks_completion(event_id, round_id, publisher: Rabbi
     # Only proceed if the event is currently in 'processing' state.
     if event.event_status != 'processing':
         logger.info(f"check_and_update_event_tasks_completion: Event {event_id} status is '{event.event_status}', not 'processing'. Skipping update.")
-        # db.session.commit() # Commit to release lock if acquired
+        db.session.commit()  # release lock obtained by with_for_update
         return False
 
     # Fetch all tasks for the current event and round.
@@ -441,11 +443,7 @@ def check_and_update_event_tasks_completion(event_id, round_id, publisher: Rabbi
 
     if not tasks_for_round:
         logger.warning(f"check_and_update_event_tasks_completion: No tasks found for Event {event_id}, Round {round_id}. Cannot determine completion. Assuming round is not completable if tasks were expected.")
-        # If an event is 'processing' but has no tasks for its current round, this might be an issue.
-        # Consider if this means 'tasks_completed' vacuously or an error.
-        # For now, if it's processing and has no tasks, it's likely not ready to move to 'tasks_completed' unless this is a terminal round with no actions.
-        # This state suggests it might be waiting for Captain to create tasks.
-        # db.session.commit() # Commit to release lock
+        db.session.commit()  # release lock
         return False
 
     all_tasks_finalized = True
@@ -459,8 +457,8 @@ def check_and_update_event_tasks_completion(event_id, round_id, publisher: Rabbi
             any_task_failed = True
     
     if not all_tasks_finalized:
-        # db.session.commit() # Commit to release lock
-        return False # Not all tasks are done yet.
+        db.session.commit()  # release lock
+        return False  # Not all tasks are done yet.
 
     # All tasks are finalized (completed or failed).
     # Now, we need to ensure all EXECUTIONS under these tasks (via commands and actions) are also finalized.
