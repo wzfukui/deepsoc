@@ -75,7 +75,7 @@ def generate_prompt_for_operator():
     return prompt
 
 if __name__ == "__main__":
-    generate_prompt_for_commander()
+    generate_prompt_for_captain()
     generate_prompt_for_analyst()
     generate_prompt_for_responder()
     generate_prompt_for_operator()
