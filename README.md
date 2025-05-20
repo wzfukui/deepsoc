@@ -137,6 +137,14 @@ python main.py -role _executor
 python main.py -role _expert
 ```
 
+如果想在一个命令中启动全部服务，可以运行脚本：
+
+```bash
+python tools/run_all_agents.py
+```
+
+该脚本会自动从项目根目录加载`.env`文件，并在收到`Ctrl+C`或终止信号时清理所有子进程。
+
 ## 📚 使用示例
 
 ### Web界面创建安全事件
