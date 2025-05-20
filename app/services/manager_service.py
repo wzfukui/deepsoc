@@ -243,8 +243,16 @@ def run_manager():
                         logger.info(f"Manager发现 {len(grouped_tasks)} 组待处理任务")
                         for (event_id, round_id), tasks in grouped_tasks.items():
                             process_task_group(event_id, round_id, tasks, publisher)
+                        # 任务处理完成后提交，以结束事务和释放锁
+                        try:
+                            db.session.commit()
+                        except Exception as loop_commit_err:
+                            logger.error(f"Manager 主循环提交事务失败: {loop_commit_err}")
+                            db.session.rollback()
                     else:
-                        # logger.debug("Manager: 没有待处理任务，等待中...") # reduce noise
+                        # logger.debug("Manager: 没有待处理任务，等待中...")
+                        # 本轮无任务也回滚，避免长事务持有快照
+                        db.session.rollback()
                         time.sleep(5)
                 except pika.exceptions.AMQPConnectionError as amqp_err:
                     logger.error(f"Manager服务 RabbitMQ连接错误: {amqp_err}. Publisher会尝试重连。")

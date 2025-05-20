@@ -259,8 +259,16 @@ def run_captain():
                     event = get_events_to_process()
                     if event:
                         process_event(event, publisher) # Pass publisher to process_event
+                        # 每处理完一个事件后提交/回滚一次，确保事务结束，释放行锁，下一轮查询能看到最新数据
+                        try:
+                            db.session.commit()
+                        except Exception as loop_commit_err:
+                            logger.error(f"Captain 主循环提交事务失败: {loop_commit_err}")
+                            db.session.rollback()
                     else:
                         # logger.debug("Captain: 没有待处理事件，等待中...") # reduce noise
+                        # 如果本轮没有事件，也显式地回滚事务，避免长事务导致快照不可见
+                        db.session.rollback()
                         time.sleep(5)
                 except pika.exceptions.AMQPConnectionError as amqp_err:
                     logger.error(f"Captain服务 RabbitMQ连接错误: {amqp_err}. Publisher 会尝试重连。")

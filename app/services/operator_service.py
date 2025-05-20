@@ -226,8 +226,16 @@ def run_operator():
                         # 处理每组动作
                         for (event_id, round_id), actions in grouped_actions.items():
                             process_action_group(event_id, round_id, actions, publisher)
+                            # 一组动作处理完后提交事务，释放锁
+                            try:
+                                db.session.commit()
+                            except Exception as loop_commit_err:
+                                logger.error(f"Operator 主循环提交事务失败: {loop_commit_err}")
+                                db.session.rollback()
                     else:
                         logger.info("没有待处理动作，等待中...")
+                        # 回滚以结束事务，确保下一次能看到最新数据
+                        db.session.rollback()
                         time.sleep(5)
                 except pika.exceptions.AMQPConnectionError as amqp_err:
                     logger.error(f"Operator服务 RabbitMQ连接错误: {amqp_err}.")
