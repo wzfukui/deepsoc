@@ -70,4 +70,8 @@
 - **配置项**: `main.py` 中的部分 Flask 和 SocketIO 配置（如日志开关、缓冲区大小）改为通过环境变量控制。
 
 ### 移除 (本次消息机制重大更新)
-- Agent 服务 (`captain`, `manager`, `operator`, `executor`, `expert`) 中对 `app.controllers.socket_controller.broadcast_message` 的直接调用及相关导入。 
+- Agent 服务 (`captain`, `manager`, `operator`, `executor`, `expert`) 中对 `app.controllers.socket_controller.broadcast_message` 的直接调用及相关导入。
+
+### 修复
+- 前端无法正确显示事件状态，因 `Event.to_dict()` 返回的字段名与前端期望不一致，现统一为 `event_status`，并保留 `status` 兼容旧代码。
+- 系统通知等消息内容显示 `undefined`，更新前端 `warroom.js` 使用统一的 `extractMessageData` 函数解析消息内容。

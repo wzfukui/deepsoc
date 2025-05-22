@@ -63,7 +63,8 @@ class Event(db.Model):
             'context': self.context,
             'source': self.source,
             'severity': self.severity,
-            'status': self.event_status,
+            'event_status': self.event_status,
+            'status': self.event_status,  # backward compatibility
             'current_round': self.current_round,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None

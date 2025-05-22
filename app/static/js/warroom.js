@@ -895,7 +895,7 @@ function addMessage(message) {
         messageContent += `<div class="llm-request-notification"><p>${requestContent}</p></div>`;
     } else if (message.message_type === 'llm_response') {
         const content = message.message_content;
-        let data = (content.type === 'llm_response') ? content.data : content;
+        let data = extractMessageData(content);
         if (message.message_from === '_captain') {
             if (data.response_type === 'TASK') {
                 messageContent += `<p>${data.response_text || '分配任务'}</p>`;
@@ -977,7 +977,7 @@ function addMessage(message) {
         }
     } else if (message.message_type === 'command_result') {
         const content = message.message_content;
-        let data = (content.type === 'command_result') ? content.data : content;
+        let data = extractMessageData(content);
         if (message.message_from === '_executor') {
             messageContent += `<p>命令 "${data.command_name}" 执行${data.status === 'completed' ? '成功' : '失败'}</p>`;
             if (data.ai_summary) {
@@ -995,7 +995,7 @@ function addMessage(message) {
         }
     } else if (message.message_type === 'execution_summary') {
         const content = message.message_content;
-        let data = (content.type === 'execution_summary') ? content.data : content;
+        let data = extractMessageData(content);
         if (message.message_from === '_expert' && data.ai_summary) {
             messageContent += `<p>执行结果摘要:</p><div class="ai-summary markdown-content">${marked.parse(data.ai_summary)}</div>`;
         } else {
@@ -1003,7 +1003,7 @@ function addMessage(message) {
         }
     } else if (message.message_type === 'event_summary') {
         const content = message.message_content;
-        let data = (content.type === 'event_summary') ? content.data : content;
+        let data = extractMessageData(content);
         if (message.message_from === '_expert') {
             messageContent += `<p>事件总结 (轮次 ${data.round_id}):</p><div class="event-summary markdown-content">${marked.parse(data.event_summary)}</div>`;
         } else {
@@ -1011,7 +1011,7 @@ function addMessage(message) {
         }
     } else if (message.message_type === 'system_notification') {
         const content = message.message_content;
-        let data = (content.type === 'system_notification') ? content.data : content;
+        let data = extractMessageData(content);
         messageContent += `<div class="system-notification"><p>${data.response_text}</p></div>`;
     } else {
         // 普通消息，确保 message.message_content 不是对象。如果是对象，尝试提取 data.text 或 stringify
@@ -1614,6 +1614,13 @@ function getSeverityText(severity) {
     };
     
     return severityMap[severity] || severity || '未知';
+}
+
+function extractMessageData(content) {
+    if (content && typeof content === 'object') {
+        return (content.data !== undefined) ? content.data : content;
+    }
+    return content;
 }
 
 function getMessageTypeText(type) {
