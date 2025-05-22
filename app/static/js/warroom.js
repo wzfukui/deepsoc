@@ -1594,15 +1594,15 @@ function getTaskTypeText(type) {
 
 function getStatusText(status) {
     const statusMap = {
-        'pending': '待处理',
-        'processing': '处理中',
-        'completed': '已完成',
-        'failed': '失败',
-        'round_finished': '轮次完成',
-        'summarized': '已总结',
-        'resolved': '已解决'
+        'pending': '⏳ 待处理',
+        'processing': '🔄 处理中',
+        'completed': '✅ 已完成',
+        'failed': '❌ 失败',
+        'round_finished': '🎯 轮次完成',
+        'summarized': '📄 已总结',
+        'resolved': '✔️ 已解决'
     };
-    
+
     return statusMap[status] || status;
 }
 
