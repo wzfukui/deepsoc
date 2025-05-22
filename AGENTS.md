@@ -1,24 +1,25 @@
 # Repository Guidelines for Codex
 
-These instructions apply to all files in this repository.
+These instructions apply to every file in this repository.
 
-Do not create new branches.
+- **Do not create new branches.** Work directly on the default branch.
 
 ## Development workflow
 
-- Use **Python 3.8+**. After modifying any `.py` files, run `python -m py_compile` on each updated file to ensure there are no syntax errors.
-- If your changes affect large components or introduce new features, prefer creating new files instead of heavily modifying existing ones. Update `changelog.md` with a summary of the changes.
-- When architectural aspects change, update `DeepSOC架构文档.md` accordingly.
-- If `.env` variables are modified, mirror the updates in `sample.env`.
-- Tests belong in the `test` directory. Temporary or helper scripts go into the `tools` directory and should include basic usage instructions.
+- Use **Python&nbsp;3.8+**.
+- After editing a `.py` file, run `python -m py_compile` on that file to catch syntax errors.
+- When adding major features or making broad changes, create new modules instead of heavily rewriting old ones. Summarize important updates in `changelog.md`.
+- Update `DeepSOC架构文档.md` whenever the architecture changes.
+- Keep `sample.env` synchronized with any `.env` modifications.
+- Place tests in the `test` directory. Temporary or helper scripts belong in `tools` and should include brief usage instructions.
 
 ## Running the project
 
-To initialize and start all services for development:
+Initialize the database and start all services with:
 
 ```bash
-python main.py -init   # first-time database setup
-python tools/run_all_agents.py  # launch web service and all agent roles
+python main.py -init          # first-time database setup
+python tools/run_all_agents.py  # launch the web service and agent roles
 ```
 
-Refer to `README.md` for more details.
+See `README.md` for further details.
