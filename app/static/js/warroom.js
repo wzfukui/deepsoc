@@ -57,6 +57,9 @@ const elements = {
     commandCount: document.getElementById('command-count'),
     modeSwitch: document.getElementById('mode-switch'),
     eventDetailsBtn: document.getElementById('event-details-btn'),
+    eventTreeBtn: document.getElementById('event-tree-btn'),
+    eventTreeModal: document.getElementById('event-tree-modal'),
+    eventTreeContainer: document.getElementById('event-tree-container'),
     eventDetailsModal: document.getElementById('event-details-modal'),
     roleHistoryModal: document.getElementById('role-history-modal'),
     messageSourceModal: document.getElementById('message-source-modal'),
@@ -556,6 +559,10 @@ function initEventListeners() {
     // 事件详情按钮点击事件
     if (elements.eventDetailsBtn) {
         elements.eventDetailsBtn.addEventListener('click', showEventDetailsModal);
+    }
+
+    if (elements.eventTreeBtn) {
+        elements.eventTreeBtn.addEventListener('click', showEventTreeModal);
     }
     
     // 关闭模态框按钮点击事件
@@ -1378,6 +1385,100 @@ function displayRoleHistory(messages, container) {
     });
     
     container.innerHTML = html;
+}
+
+// 显示事件关系树模态框
+function showEventTreeModal() {
+    fetchEventTree();
+    elements.eventTreeModal.style.display = 'flex';
+}
+
+// 获取事件关系树数据
+async function fetchEventTree() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/event/${eventId}/hierarchy`, {
+            headers: getAuthHeaders(),
+            credentials: 'include'
+        });
+
+        if (response.status === 401) return;
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            displayEventTree(data.data);
+        } else {
+            elements.eventTreeContainer.innerHTML = '<div class="text-center">获取失败</div>';
+        }
+    } catch (error) {
+        console.error('获取事件关系树出错:', error);
+        elements.eventTreeContainer.innerHTML = '<div class="text-center">获取关系树失败</div>';
+    }
+}
+
+function displayEventTree(rounds) {
+    if (!rounds || rounds.length === 0) {
+        elements.eventTreeContainer.innerHTML = '<div class="text-center">暂无数据</div>';
+        return;
+    }
+
+    let html = '';
+    rounds.forEach(round => {
+        html += `<div class="event-tree-round">`;
+        html += `<div class="event-tree-round-title"># round ${round.round_id}</div>`;
+        html += buildTaskList(round.tasks);
+        html += `</div>`;
+    });
+
+    elements.eventTreeContainer.innerHTML = html;
+}
+
+function buildTaskList(tasks) {
+    let html = '<ul>';
+    tasks.forEach(task => {
+        html += `<li>${task.task_name || task.task_id}<span class="event-tree-status">[${getStatusText(task.task_status)}]</span>`;
+        if (task.actions && task.actions.length > 0) {
+            html += buildActionList(task.actions);
+        }
+        html += '</li>';
+    });
+    html += '</ul>';
+    return html;
+}
+
+function buildActionList(actions) {
+    let html = '<ul>';
+    actions.forEach(action => {
+        html += `<li>${action.action_name || action.action_id}<span class="event-tree-status">[${getStatusText(action.action_status)}]</span>`;
+        if (action.commands && action.commands.length > 0) {
+            html += buildCommandList(action.commands);
+        }
+        html += '</li>';
+    });
+    html += '</ul>';
+    return html;
+}
+
+function buildCommandList(commands) {
+    let html = '<ul>';
+    commands.forEach(cmd => {
+        html += `<li>${cmd.command_name || cmd.command_id}<span class="event-tree-status">[${getStatusText(cmd.command_status)}]</span>`;
+        if (cmd.executions && cmd.executions.length > 0) {
+            html += buildExecutionList(cmd.executions);
+        }
+        html += '</li>';
+    });
+    html += '</ul>';
+    return html;
+}
+
+function buildExecutionList(executions) {
+    let html = '<ul>';
+    executions.forEach(exe => {
+        html += `<li>${exe.execution_id}<span class="event-tree-status">[${getStatusText(exe.execution_status)}]</span></li>`;
+    });
+    html += '</ul>';
+    return html;
 }
 
 // 关闭所有模态框

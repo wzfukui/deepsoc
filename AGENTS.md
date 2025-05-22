@@ -2,6 +2,8 @@
 
 These instructions apply to all files in this repository.
 
+Do not create new branches.
+
 ## Development workflow
 
 - Use **Python 3.8+**. After modifying any `.py` files, run `python -m py_compile` on each updated file to ensure there are no syntax errors.
