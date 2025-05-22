@@ -2012,10 +2012,32 @@ h1, h2, h3, h4, h5, h6, .cyber-btn, .section-title, .status-label {
 .event-tree-container ul {
     list-style: none;
     padding-left: 20px;
+    margin-left: 10px;
+    position: relative;
+}
+
+.event-tree-container ul::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    border-left: 1px dashed rgba(255, 255, 255, 0.3);
 }
 
 .event-tree-container li {
     margin-bottom: 4px;
+    position: relative;
+    padding-left: 20px;
+}
+
+.event-tree-container li::before {
+    content: '';
+    position: absolute;
+    top: 0.85em;
+    left: 0;
+    width: 20px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.3);
 }
 
 .event-tree-round {
