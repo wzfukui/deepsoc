@@ -16,6 +16,7 @@
 - **`RabbitMQConsumer` 工具类 (`app/utils/mq_consumer.py`)**: 在主 Web 服务中实现，负责从 RabbitMQ 消费消息，支持连接重试和回调处理。
 - 新增提示词管理页面及相关 API，可在“设置”菜单下编辑各角色提示词
 - 新增 `prompts` 数据表，用于存储所有提示词和背景信息，前端可在线修改
+- 初始化脚本现会自动导入内置的提示词，并移除相应 Markdown 模板文件
 - **Agent 服务消息发布集成**: 
     - `captain_service.py`、`manager_service.py`、`operator_service.py`、`executor_service.py`、`expert_service.py`（包括其多线程worker）均已集成 `RabbitMQPublisher`，在生成业务消息（如LLM请求/响应、任务/动作/命令创建、执行结果、摘要生成、事件状态变更等）后，将消息发布到 RabbitMQ。
 - **主 Web 服务消息消费与 WebSocket 推送**: 
@@ -85,4 +86,6 @@
 - 新增API `GET/PUT /api/prompt/background/<name>` 用于管理背景文件。
 - `PromptService` 采用 `generate_prompt` 动态生成提示词。
 - 作战室事件详情模态框支持 Markdown 渲染，展示原始信息、上下文和事件总结时格式更友好。
+- 新增修改密码页面及 `/api/auth/change-password` 接口，用户可在登录后通过右上角菜单修改密码。
+
 

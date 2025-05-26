@@ -12,7 +12,8 @@ from functools import wraps
 from dotenv import load_dotenv
 from app.models import db
 from app.utils.logging_config import configure_logging
-from app.models.models import User
+from app.models.models import User, Prompt
+from app.prompts.default_prompts import DEFAULT_PROMPTS
 from app.utils.mq_consumer import RabbitMQConsumer # Added MQ Consumer
 
 # 配置日志
@@ -228,6 +229,11 @@ def soar_playbooks():
 def mcp_tools():
     return render_template('mcp_tools.html')
 
+@app.route('/change-password')
+@login_required
+def change_password_page():
+    return render_template('change_password.html')
+
 @app.route('/health')
 def health():
     return jsonify({
@@ -249,6 +255,19 @@ def create_admin_user():
         if admin_exists:
             logger.info("管理员用户已存在，无需创建")
             return False
+
+def create_default_prompts():
+    """Load built-in prompt content into the database if not already present."""
+    with app.app_context():
+        for name, content in DEFAULT_PROMPTS.items():
+            prompt = Prompt.query.filter_by(name=name).first()
+            if not prompt:
+                prompt = Prompt(name=name)
+                db.session.add(prompt)
+            if not prompt.content:
+                prompt.content = content
+        db.session.commit()
+        logger.info("默认提示词导入完成")
         
         # 获取环境变量中的管理员信息
         admin_username = os.getenv('ADMIN_USERNAME', 'admin')
@@ -306,6 +325,7 @@ if __name__ == '__main__':
     if args.init:
         create_tables()
         create_admin_user()
+        create_default_prompts()
     
     if args.role:
         # When running as an agent, do not start the MQ consumer or web server.
