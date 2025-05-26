@@ -229,6 +229,11 @@ def soar_playbooks():
 def mcp_tools():
     return render_template('mcp_tools.html')
 
+@app.route('/change-password')
+@login_required
+def change_password_page():
+    return render_template('change_password.html')
+
 @app.route('/health')
 def health():
     return jsonify({
