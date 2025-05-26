@@ -210,6 +210,21 @@ def warroom(event_id):
 def prompt_settings():
     return render_template('prompt_management.html')
 
+@app.route('/settings/background-security')
+@login_required
+def background_security():
+    return render_template('background_security.html')
+
+@app.route('/settings/soar-playbooks')
+@login_required
+def soar_playbooks():
+    return render_template('soar_playbooks.html')
+
+@app.route('/settings/mcp-tools')
+@login_required
+def mcp_tools():
+    return render_template('mcp_tools.html')
+
 @app.route('/health')
 def health():
     return jsonify({

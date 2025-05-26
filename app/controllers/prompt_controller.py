@@ -16,7 +16,8 @@ ROLE_FILES = {
 
 BACKGROUND_FILES = {
     'background_security': 'background_security.md',
-    'background_soar_playbooks': 'background_soar_playbooks.md'
+    'background_soar_playbooks': 'background_soar_playbooks.md',
+    'mcp_tools': 'mcp_tools.md'
 }
 
 

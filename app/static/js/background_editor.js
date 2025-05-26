@@ -1,4 +1,4 @@
-// 提示词管理页面脚本
+// 通用背景编辑页面脚本
 const API_BASE_URL = '/api';
 
 function getAuthHeaders() {
@@ -55,53 +55,46 @@ function checkAuth() {
     const token = localStorage.getItem('access_token') || getCookie('access_token');
     updateAuthUI(!!token);
     if (token) {
-        fetch('/api/auth/check-auth', {
-            headers: { 'Authorization': `Bearer ${token}` },
-            credentials: 'include'
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (!data.authenticated) {
+        fetch('/api/auth/check-auth', { headers: { 'Authorization': `Bearer ${token}` }, credentials: 'include' })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.authenticated) {
+                    localStorage.removeItem('access_token');
+                    localStorage.removeItem('user_info');
+                    document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                    updateAuthUI(false);
+                }
+            })
+            .catch(() => {
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('user_info');
                 document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
                 updateAuthUI(false);
-            }
-        })
-        .catch(() => {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('user_info');
-            document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-            updateAuthUI(false);
-        });
+            });
     }
 }
 
-function loadPrompts() {
-    fetch(`${API_BASE_URL}/prompt/list`, { headers: getAuthHeaders(), credentials: 'include' })
+function loadBackground() {
+    fetch(`${API_BASE_URL}/prompt/background/${BACKGROUND_NAME}`, { headers: getAuthHeaders(), credentials: 'include' })
         .then(r => r.json())
         .then(data => {
             if (data.status === 'success') {
-                const prompts = data.data;
-                for (const role in prompts) {
-                    const textarea = document.getElementById(`prompt-${role}`);
-                    if (textarea) textarea.value = prompts[role];
-                }
+                const textarea = document.getElementById('background-text');
+                if (textarea) textarea.value = data.data;
             } else {
                 showToast(data.message || '加载失败', 'error');
             }
         })
         .catch(() => showToast('加载失败', 'error'));
-
 }
 
-function savePrompt(role) {
-    const textarea = document.getElementById(`prompt-${role}`);
+function saveBackground() {
+    const textarea = document.getElementById('background-text');
     if (!textarea) return;
-    fetch(`${API_BASE_URL}/prompt/${role}`, {
+    fetch(`${API_BASE_URL}/prompt/background/${BACKGROUND_NAME}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ prompt: textarea.value }),
+        body: JSON.stringify({ content: textarea.value }),
         credentials: 'include'
     })
         .then(r => r.json())
@@ -115,25 +108,11 @@ function savePrompt(role) {
         .catch(() => showToast('保存失败', 'error'));
 }
 
-
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
-    loadPrompts();
-    document.querySelectorAll('.save-prompt-btn').forEach(btn => {
-        btn.addEventListener('click', () => savePrompt(btn.dataset.role));
-    });
-    document.querySelectorAll('#prompt-nav a').forEach(a => {
-        a.addEventListener('click', e => {
-            e.preventDefault();
-            const target = a.dataset.target;
-            document.querySelectorAll('#prompt-nav a').forEach(link => link.classList.remove('active'));
-            a.classList.add('active');
-            document.querySelectorAll('.prompt-section').forEach(section => {
-                if (section.dataset.role === target) section.classList.remove('d-none');
-                else section.classList.add('d-none');
-            });
-        });
-    });
+    loadBackground();
+    const saveBtn = document.getElementById('save-btn');
+    if (saveBtn) saveBtn.addEventListener('click', saveBackground);
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) logoutBtn.addEventListener('click', logout);
 });
