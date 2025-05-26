@@ -14,6 +14,11 @@ ROLE_FILES = {
     '_expert': 'role_soc_expert.md'
 }
 
+BACKGROUND_FILES = {
+    'background_security': 'background_security.md',
+    'background_soar_playbooks': 'background_soar_playbooks.md'
+}
+
 
 def _load_prompt(role: str) -> str:
     file_path = PROMPT_DIR / ROLE_FILES[role]
@@ -25,6 +30,20 @@ def _load_prompt(role: str) -> str:
 
 def _save_prompt(role: str, content: str) -> None:
     file_path = PROMPT_DIR / ROLE_FILES[role]
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+
+
+def _load_background(name: str) -> str:
+    file_path = PROMPT_DIR / BACKGROUND_FILES[name]
+    if file_path.exists():
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    return ''
+
+
+def _save_background(name: str, content: str) -> None:
+    file_path = PROMPT_DIR / BACKGROUND_FILES[name]
     with open(file_path, 'w', encoding='utf-8') as f:
         f.write(content)
 
@@ -54,4 +73,24 @@ def handle_prompt(role):
         return jsonify({'status': 'success', 'message': '保存成功'})
     except Exception as e:
         logger.error(f'保存提示词失败: {e}')
+        return jsonify({'status': 'error', 'message': '保存失败'}), 500
+
+
+@prompt_bp.route('/background/<name>', methods=['GET', 'PUT'])
+@jwt_required()
+def handle_background(name):
+    """Get or update background files."""
+    if name not in BACKGROUND_FILES:
+        return jsonify({'status': 'error', 'message': '未知文件'}), 400
+
+    if request.method == 'GET':
+        return jsonify({'status': 'success', 'data': _load_background(name)})
+
+    data = request.get_json() or {}
+    content = data.get('content', '')
+    try:
+        _save_background(name, content)
+        return jsonify({'status': 'success', 'message': '保存成功'})
+    except Exception as e:
+        logger.error(f'保存背景文件失败: {e}')
         return jsonify({'status': 'error', 'message': '保存失败'}), 500

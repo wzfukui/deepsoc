@@ -92,6 +92,17 @@ function loadPrompts() {
             }
         })
         .catch(() => showToast('加载失败', 'error'));
+
+    ['background_security', 'background_soar_playbooks'].forEach(name => {
+        fetch(`${API_BASE_URL}/prompt/background/${name}`, { headers: getAuthHeaders(), credentials: 'include' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const textarea = document.getElementById(`background-${name}`);
+                    if (textarea) textarea.value = data.data;
+                }
+            });
+    });
 }
 
 function savePrompt(role) {
@@ -114,11 +125,46 @@ function savePrompt(role) {
         .catch(() => showToast('保存失败', 'error'));
 }
 
+function saveBackground(name) {
+    const textarea = document.getElementById(`background-${name}`);
+    if (!textarea) return;
+    fetch(`${API_BASE_URL}/prompt/background/${name}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ content: textarea.value }),
+        credentials: 'include'
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast('保存成功', 'success');
+            } else {
+                showToast(data.message || '保存失败', 'error');
+            }
+        })
+        .catch(() => showToast('保存失败', 'error'));
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     loadPrompts();
     document.querySelectorAll('.save-prompt-btn').forEach(btn => {
         btn.addEventListener('click', () => savePrompt(btn.dataset.role));
+    });
+    document.querySelectorAll('.save-background-btn').forEach(btn => {
+        btn.addEventListener('click', () => saveBackground(btn.dataset.name));
+    });
+    document.querySelectorAll('#prompt-nav a').forEach(a => {
+        a.addEventListener('click', e => {
+            e.preventDefault();
+            const target = a.dataset.target;
+            document.querySelectorAll('#prompt-nav a').forEach(link => link.classList.remove('active'));
+            a.classList.add('active');
+            document.querySelectorAll('.prompt-section').forEach(section => {
+                if (section.dataset.role === target) section.classList.remove('d-none');
+                else section.classList.add('d-none');
+            });
+        });
     });
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) logoutBtn.addEventListener('click', logout);

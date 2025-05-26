@@ -76,3 +76,9 @@
 ### 修复
 - 前端无法正确显示事件状态，因 `Event.to_dict()` 返回的字段名与前端期望不一致，现统一为 `event_status`，并保留 `status` 兼容旧代码。
 - 系统通知等消息内容显示 `undefined`，更新前端 `warroom.js` 使用统一的 `extractMessageData` 函数解析消息内容。
+
+### 新增
+- 提示词管理页面改为左侧导航布局，支持切换各角色及背景信息编辑。
+- 新增API `GET/PUT /api/prompt/background/<name>` 用于管理背景文件。
+- `PromptService` 采用 `generate_prompt` 动态生成提示词。
+

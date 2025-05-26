@@ -48,41 +48,71 @@
 
     <div class="container">
         <h1 class="mb-4">提示词管理</h1>
-        <div id="prompt-container">
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">指挥官</h5>
-                    <button class="btn btn-sm btn-primary save-prompt-btn" data-role="_captain">保存</button>
-                </div>
-                <div class="card-body">
-                    <textarea class="form-control" rows="6" id="prompt-_captain"></textarea>
-                </div>
-            </div>
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">安全经理</h5>
-                    <button class="btn btn-sm btn-primary save-prompt-btn" data-role="_manager">保存</button>
-                </div>
-                <div class="card-body">
-                    <textarea class="form-control" rows="6" id="prompt-_manager"></textarea>
+        <div class="row">
+            <div class="col-md-3 mb-3">
+                <div class="list-group" id="prompt-nav">
+                    <a class="list-group-item list-group-item-action active" data-target="_captain" href="#_captain">指挥官</a>
+                    <a class="list-group-item list-group-item-action" data-target="_manager" href="#_manager">安全经理</a>
+                    <a class="list-group-item list-group-item-action" data-target="_operator" href="#_operator">操作员</a>
+                    <a class="list-group-item list-group-item-action" data-target="_expert" href="#_expert">安全专家</a>
+                    <a class="list-group-item list-group-item-action" data-target="background_security" href="#background_security">安全背景</a>
+                    <a class="list-group-item list-group-item-action" data-target="background_soar_playbooks" href="#background_soar_playbooks">SOAR剧本</a>
                 </div>
             </div>
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">操作员</h5>
-                    <button class="btn btn-sm btn-primary save-prompt-btn" data-role="_operator">保存</button>
+            <div class="col-md-9" id="prompt-container">
+                <div class="card mb-4 prompt-section" data-role="_captain">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">指挥官</h5>
+                        <button class="btn btn-sm btn-primary save-prompt-btn" data-role="_captain">保存</button>
+                    </div>
+                    <div class="card-body">
+                        <textarea class="form-control" rows="12" id="prompt-_captain"></textarea>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <textarea class="form-control" rows="6" id="prompt-_operator"></textarea>
+                <div class="card mb-4 prompt-section d-none" data-role="_manager">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">安全经理</h5>
+                        <button class="btn btn-sm btn-primary save-prompt-btn" data-role="_manager">保存</button>
+                    </div>
+                    <div class="card-body">
+                        <textarea class="form-control" rows="12" id="prompt-_manager"></textarea>
+                    </div>
                 </div>
-            </div>
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">安全专家</h5>
-                    <button class="btn btn-sm btn-primary save-prompt-btn" data-role="_expert">保存</button>
+                <div class="card mb-4 prompt-section d-none" data-role="_operator">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">操作员</h5>
+                        <button class="btn btn-sm btn-primary save-prompt-btn" data-role="_operator">保存</button>
+                    </div>
+                    <div class="card-body">
+                        <textarea class="form-control" rows="12" id="prompt-_operator"></textarea>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <textarea class="form-control" rows="6" id="prompt-_expert"></textarea>
+                <div class="card mb-4 prompt-section d-none" data-role="_expert">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">安全专家</h5>
+                        <button class="btn btn-sm btn-primary save-prompt-btn" data-role="_expert">保存</button>
+                    </div>
+                    <div class="card-body">
+                        <textarea class="form-control" rows="12" id="prompt-_expert"></textarea>
+                    </div>
+                </div>
+                <div class="card mb-4 prompt-section d-none" data-role="background_security">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">安全背景</h5>
+                        <button class="btn btn-sm btn-primary save-background-btn" data-name="background_security">保存</button>
+                    </div>
+                    <div class="card-body">
+                        <textarea class="form-control" rows="12" id="background-background_security"></textarea>
+                    </div>
+                </div>
+                <div class="card mb-4 prompt-section d-none" data-role="background_soar_playbooks">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">SOAR剧本</h5>
+                        <button class="btn btn-sm btn-primary save-background-btn" data-name="background_soar_playbooks">保存</button>
+                    </div>
+                    <div class="card-body">
+                        <textarea class="form-control" rows="12" id="background-background_soar_playbooks"></textarea>
+                    </div>
                 </div>
             </div>
         </div>
