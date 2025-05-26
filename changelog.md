@@ -78,6 +78,7 @@
 ### 修复
 - 前端无法正确显示事件状态，因 `Event.to_dict()` 返回的字段名与前端期望不一致，现统一为 `event_status`，并保留 `status` 兼容旧代码。
 - 系统通知等消息内容显示 `undefined`，更新前端 `warroom.js` 使用统一的 `extractMessageData` 函数解析消息内容。
+- 作战室仍然显示原始 JSON 的 AI 响应，前端 `warroom.js` 现统一处理 `*_llm_request` 与 `*_llm_response` 类型。
 
 ### 新增
 - 提示词管理页面改为左侧导航布局，支持切换各角色及背景信息编辑。

@@ -1550,41 +1550,41 @@ h1, h2, h3, h4, h5, h6, .cyber-btn, .section-title, .status-label {
     margin: 0;
 }
 
-/* 任务和动作中的角色颜色 */
-.task-assignee, .action-assignee {
+/* 任务、动作和命令中的角色颜色 */
+.task-assignee, .action-assignee, .command-assignee {
     color: var(--light-text); /* 默认颜色 */
 }
 
-.task-assignee.role-manager, .action-assignee.role-manager {
+.task-assignee.role-manager, .action-assignee.role-manager, .command-assignee.role-manager {
     color: var(--success-color);
 }
 
-.task-assignee.role-operator, .action-assignee.role-operator {
+.task-assignee.role-operator, .action-assignee.role-operator, .command-assignee.role-operator {
     color: var(--warning-color);
 }
 
-.task-assignee.role-executor, .action-assignee.role-executor {
+.task-assignee.role-executor, .action-assignee.role-executor, .command-assignee.role-executor {
     color: #9c27b0;
 }
 
-.task-assignee.role-expert, .action-assignee.role-expert {
+.task-assignee.role-expert, .action-assignee.role-expert, .command-assignee.role-expert {
     color: #ff9800;
 }
 
-.task-assignee.role-captain, .action-assignee.role-captain {
+.task-assignee.role-captain, .action-assignee.role-captain, .command-assignee.role-captain {
     color: var(--primary-color);
 }
 
 /* 子角色颜色 */
-.task-assignee.role-analyst, .action-assignee.role-analyst {
+.task-assignee.role-analyst, .action-assignee.role-analyst, .command-assignee.role-analyst {
     color: var(--success-color); /* 改为绿色 */
 }
 
-.task-assignee.role-coordinator, .action-assignee.role-coordinator {
+.task-assignee.role-coordinator, .action-assignee.role-coordinator, .command-assignee.role-coordinator {
     color: var(--success-color); /* 改为绿色 */
 }
 
-.task-assignee.role-responder, .action-assignee.role-responder {
+.task-assignee.role-responder, .action-assignee.role-responder, .command-assignee.role-responder {
     color: var(--success-color); /* 改为绿色 */
 }
 
@@ -1616,6 +1616,13 @@ h1, h2, h3, h4, h5, h6, .cyber-btn, .section-title, .status-label {
     white-space: nowrap;
     overflow: hidden;
     border-left: 3px solid #9c27b0;
+}
+
+.command-assignee {
+    font-weight: bold;
+    margin-right: 3px;
+    font-size: 0.9em;
+    display: inline-block;
 }
 
 .command-name {

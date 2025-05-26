@@ -884,7 +884,7 @@ function addMessage(message) {
     // (您需要将原 addMessage 函数中从 "处理llm_request类型的消息" 开始到 "普通消息" 的那一大段 if/else if/else 逻辑粘贴到这里)
     // 为了简洁，暂时用一个占位符表示，实际替换时请务必包含完整的消息内容构建逻辑
     // Placeholder for detailed message content rendering logic from original addMessage:
-    if (message.message_type === 'llm_request') {
+    if (message.message_type === 'llm_request' || message.message_type.includes('_llm_request')) {
         let requestContent = '';
         if (typeof message.message_content === 'object') {
             if (message.message_content.type === 'llm_request' && message.message_content.data) {
@@ -898,7 +898,7 @@ function addMessage(message) {
             requestContent = message.message_content;
         }
         messageContent += `<div class="llm-request-notification"><p>${requestContent}</p></div>`;
-    } else if (message.message_type === 'llm_response') {
+    } else if (message.message_type === 'llm_response' || message.message_type.includes('_llm_response')) {
         const content = message.message_content;
         let data = extractMessageData(content);
         if (message.message_from === '_captain') {
@@ -938,6 +938,9 @@ function addMessage(message) {
                         else if (action.action_assignee === '_operator') { assignee_name = '安全工程师'; assignee_role = 'operator'; }
                         else if (action.action_assignee === '_executor') { assignee_name = '执行器'; assignee_role = 'executor'; }
                         else if (action.action_assignee === '_expert') { assignee_name = '安全专家'; assignee_role = 'expert'; }
+                        else if (action.action_assignee === '_analyst') { assignee_name = '分析员'; assignee_role = 'analyst'; }
+                        else if (action.action_assignee === '_responder') { assignee_name = '处置员'; assignee_role = 'responder'; }
+                        else if (action.action_assignee === '_coordinator') { assignee_name = '协调员'; assignee_role = 'coordinator'; }
                         const shortTaskId = action.task_id ? String(action.task_id).substring(0, 8) : '';
                         const shortActionId = action.action_id ? String(action.action_id).substring(0, 8) : '';
                         const idInfo = `${shortTaskId}->${shortActionId}`;
@@ -972,7 +975,16 @@ function addMessage(message) {
                         const shortActionId = command.action_id ? String(command.action_id).substring(0, 8) : '';
                         const shortCommandId = command.command_id ? String(command.command_id).substring(0, 8) : '';
                         const idInfo = `${shortTaskId}->${shortActionId}->${shortCommandId}`;
-                        messageContent += `<div class="command-item command-type-${command.command_type || 'default'}"><span class="command-name">${command.command_name}</span> <span class="command-type">${command.command_type || ''}</span> <span class="command-id">${idInfo}</span></div>`;
+                        let assignee_name = '未指定';
+                        let assignee_role = '';
+                        if (command.command_assignee === '_manager') { assignee_name = '安全管理员'; assignee_role = 'manager'; }
+                        else if (command.command_assignee === '_operator') { assignee_name = '安全工程师'; assignee_role = 'operator'; }
+                        else if (command.command_assignee === '_executor') { assignee_name = '执行器'; assignee_role = 'executor'; }
+                        else if (command.command_assignee === '_expert') { assignee_name = '安全专家'; assignee_role = 'expert'; }
+                        else if (command.command_assignee === '_analyst') { assignee_name = '分析员'; assignee_role = 'analyst'; }
+                        else if (command.command_assignee === '_responder') { assignee_name = '处置员'; assignee_role = 'responder'; }
+                        else if (command.command_assignee === '_coordinator') { assignee_name = '协调员'; assignee_role = 'coordinator'; }
+                        messageContent += `<div class="command-item command-type-${command.command_type || 'default'}"><span class="command-assignee role-${assignee_role}">@${assignee_name}</span> <span class="command-name">${command.command_name}</span> <span class="command-type">${command.command_type || ''}</span> <span class="command-id">${idInfo}</span></div>`;
                     });
                     messageContent += '</div>';
                 }
@@ -1668,6 +1680,7 @@ function extractMessageData(content) {
 
 function getMessageTypeText(type) {
     const typeMap = {
+        'llm_request': 'AI请求',
         'llm_response': 'AI响应',
         'command_result': '命令结果',
         'execution_summary': '执行摘要',
@@ -1677,7 +1690,9 @@ function getMessageTypeText(type) {
         'user_message': '用户消息',
         'system_notification': '系统通知'
     };
-    
+
+    if (type.includes('_llm_request')) return 'AI请求';
+    if (type.includes('_llm_response')) return 'AI响应';
     return typeMap[type] || type;
 }
 
