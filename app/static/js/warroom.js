@@ -884,7 +884,7 @@ function addMessage(message) {
     // (您需要将原 addMessage 函数中从 "处理llm_request类型的消息" 开始到 "普通消息" 的那一大段 if/else if/else 逻辑粘贴到这里)
     // 为了简洁，暂时用一个占位符表示，实际替换时请务必包含完整的消息内容构建逻辑
     // Placeholder for detailed message content rendering logic from original addMessage:
-    if (message.message_type === 'llm_request') {
+    if (message.message_type === 'llm_request' || message.message_type.includes('_llm_request')) {
         let requestContent = '';
         if (typeof message.message_content === 'object') {
             if (message.message_content.type === 'llm_request' && message.message_content.data) {
@@ -898,7 +898,7 @@ function addMessage(message) {
             requestContent = message.message_content;
         }
         messageContent += `<div class="llm-request-notification"><p>${requestContent}</p></div>`;
-    } else if (message.message_type === 'llm_response') {
+    } else if (message.message_type === 'llm_response' || message.message_type.includes('_llm_response')) {
         const content = message.message_content;
         let data = extractMessageData(content);
         if (message.message_from === '_captain') {
@@ -1680,6 +1680,7 @@ function extractMessageData(content) {
 
 function getMessageTypeText(type) {
     const typeMap = {
+        'llm_request': 'AI请求',
         'llm_response': 'AI响应',
         'command_result': '命令结果',
         'execution_summary': '执行摘要',
@@ -1689,7 +1690,9 @@ function getMessageTypeText(type) {
         'user_message': '用户消息',
         'system_notification': '系统通知'
     };
-    
+
+    if (type.includes('_llm_request')) return 'AI请求';
+    if (type.includes('_llm_response')) return 'AI响应';
     return typeMap[type] || type;
 }
 
