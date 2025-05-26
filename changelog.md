@@ -85,5 +85,7 @@
 - 提示词管理页面改为左侧导航布局，支持切换各角色及背景信息编辑。
 - 新增API `GET/PUT /api/prompt/background/<name>` 用于管理背景文件。
 - `PromptService` 采用 `generate_prompt` 动态生成提示词。
+- 作战室事件详情模态框支持 Markdown 渲染，展示原始信息、上下文和事件总结时格式更友好。
 - 新增修改密码页面及 `/api/auth/change-password` 接口，用户可在登录后通过右上角菜单修改密码。
+
 
