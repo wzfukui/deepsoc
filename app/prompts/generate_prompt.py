@@ -1,81 +1,38 @@
 #!/usr/bin/env python3
+"""Utility to build prompts for different roles."""
+from pathlib import Path
 
-import os
-import sys
+PROMPT_DIR = Path(__file__).parent
+ROLE_FILES = {
+    '_captain': 'role_soc_captain.md',
+    '_manager': 'role_soc_manager.md',
+    '_operator': 'role_soc_operator.md',
+    '_expert': 'role_soc_expert.md'
+}
+
+BACKGROUND_FILE = PROMPT_DIR / 'background_security.md'
+PLAYBOOK_FILE = PROMPT_DIR / 'background_soar_playbooks.md'
 
 
-def generate_prompt_for_captain():
-    prompt_default = ""
-    with open("prompts/role_soc_captain.md", "r") as f:
-        prompt_default = f.read()
-
-    prompt_background = ""
-    with open("prompts/background_security.md", "r") as f:
-        prompt_background = f.read()
-
-    prompt = prompt_default.replace("{background_info}", prompt_background)
-
+def generate_prompt(role: str) -> str:
+    """Generate prompt text for the given role."""
+    role_file = PROMPT_DIR / ROLE_FILES.get(role, '')
+    if not role_file.exists():
+        return ''
+    background_info = BACKGROUND_FILE.read_text(encoding='utf-8') if BACKGROUND_FILE.exists() else ''
+    playbook_list = PLAYBOOK_FILE.read_text(encoding='utf-8') if PLAYBOOK_FILE.exists() else ''
+    prompt = role_file.read_text(encoding='utf-8')
+    prompt = prompt.replace('{background_info}', background_info)
+    prompt = prompt.replace('{playbook_list}', playbook_list)
     return prompt
 
 
-def generate_prompt_for_analyst():
-    prompt_default = ""
-    with open("prompts/role_soc_analyst.md", "r") as f:
-        prompt_default = f.read()
-
-    prompt_background = ""
-    with open("prompts/background_security.md", "r") as f:
-        prompt_background = f.read()
-
-    prompt_playbooks = ""
-    with open("prompts/background_soar_playbooks.md", "r") as f:
-        prompt_playbooks = f.read()
-
-    prompt = prompt_default.replace("{background_info}", prompt_background)
-    prompt = prompt.replace("{playbook_list}", prompt_playbooks)
-
-    return prompt
+def main():
+    for role in ROLE_FILES:
+        text = generate_prompt(role)
+        print(f"==== {role} ====")
+        print(text[:200] + ('...' if len(text) > 200 else ''))
 
 
-
-def generate_prompt_for_responder():
-    prompt_default = ""
-    with open("prompts/role_soc_responder.md", "r") as f:
-        prompt_default = f.read()
-
-    prompt_background = ""
-    with open("prompts/background_security.md", "r") as f:
-        prompt_background = f.read()
-
-    playbook_list = ""
-    with open("prompts/background_soar_playbooks.md", "r") as f:
-        playbook_list = f.read()
-
-    prompt = prompt_default.replace("{background_info}", prompt_background)
-    prompt = prompt.replace("{playbook_list}", playbook_list)
-
-    return prompt
-
-def generate_prompt_for_operator():
-    prompt_default = ""
-    with open("prompts/role_soc_operator.md", "r") as f:
-        prompt_default = f.read()
-
-    background_info = ""
-    with open("prompts/background_security.md", "r") as f:
-        background_info = f.read()
-
-    playbook_list = ""
-    with open("prompts/background_soar_playbooks.md", "r") as f:
-        playbook_list = f.read()
-
-    prompt = prompt_default.replace("{background_info}", background_info)
-    prompt = prompt.replace("{playbook_list}", playbook_list)
-
-    return prompt
-
-if __name__ == "__main__":
-    generate_prompt_for_commander()
-    generate_prompt_for_analyst()
-    generate_prompt_for_responder()
-    generate_prompt_for_operator()
+if __name__ == '__main__':
+    main()

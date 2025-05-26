@@ -280,14 +280,17 @@ function updateAuthUI(isAuthenticated) {
     // 更新导航栏状态
     const loginNavItem = document.getElementById('login-nav-item');
     const userNavItem = document.getElementById('user-nav-item');
-    
+    const settingsNavItem = document.getElementById('settings-nav-item');
+
     if (loginNavItem && userNavItem) {
         if (isAuthenticated) {
             loginNavItem.classList.add('d-none');
             userNavItem.classList.remove('d-none');
+            if (settingsNavItem) settingsNavItem.classList.remove('d-none');
         } else {
             loginNavItem.classList.remove('d-none');
             userNavItem.classList.add('d-none');
+            if (settingsNavItem) settingsNavItem.classList.add('d-none');
         }
     }
 }

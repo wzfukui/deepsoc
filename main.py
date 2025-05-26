@@ -65,6 +65,9 @@ app.register_blueprint(event_bp, url_prefix='/api/event')
 from app.controllers.auth_controller import auth_bp
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 
+from app.controllers.prompt_controller import prompt_bp
+app.register_blueprint(prompt_bp, url_prefix='/api/prompt')
+
 from app.controllers.socket_controller import register_socket_events
 register_socket_events(socketio)
 
@@ -201,6 +204,11 @@ def login():
 @login_required
 def warroom(event_id):
     return render_template('warroom.html', event_id=event_id)
+
+@app.route('/settings/prompts')
+@login_required
+def prompt_settings():
+    return render_template('prompt_management.html')
 
 @app.route('/health')
 def health():
