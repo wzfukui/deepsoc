@@ -1197,11 +1197,19 @@ function showEventDetailsModal() {
     
     console.log('%c[事件详情] 填充事件详情数据', 'color: #3F51B5;');
     
-    // 显示事件原始信息
-    messageDetailElement.textContent = eventData.message || '无原始信息';
-    
-    // 显示事件上下文
-    contextDetailElement.textContent = eventData.context || '无上下文信息';
+    // 显示事件原始信息，支持Markdown渲染
+    if (eventData.message) {
+        messageDetailElement.innerHTML = marked.parse(eventData.message);
+    } else {
+        messageDetailElement.innerHTML = '<p>无原始信息</p>';
+    }
+
+    // 显示事件上下文，支持Markdown渲染
+    if (eventData.context) {
+        contextDetailElement.innerHTML = marked.parse(eventData.context);
+    } else {
+        contextDetailElement.innerHTML = '<p>无上下文信息</p>';
+    }
     
     // 获取并显示事件总结
     fetchEventSummaries(summaryListElement);
@@ -1267,13 +1275,14 @@ function displayEventSummaries(summaries, container) {
     summaries.sort((a, b) => b.round_id - a.round_id);
     
     summaries.forEach(summary => {
+        const content = summary.event_summary ? marked.parse(summary.event_summary) : '';
         html += `
             <div class="event-summary-item">
                 <div class="event-summary-header">
                     <span class="event-summary-round">轮次 ${summary.round_id}</span>
                     <span class="event-summary-time">${formatDateTime(summary.created_at)}</span>
                 </div>
-                <div class="event-summary-content">${summary.event_summary}</div>
+                <div class="event-summary-content markdown-content">${content}</div>
             </div>
         `;
     });
