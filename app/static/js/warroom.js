@@ -938,6 +938,9 @@ function addMessage(message) {
                         else if (action.action_assignee === '_operator') { assignee_name = '安全工程师'; assignee_role = 'operator'; }
                         else if (action.action_assignee === '_executor') { assignee_name = '执行器'; assignee_role = 'executor'; }
                         else if (action.action_assignee === '_expert') { assignee_name = '安全专家'; assignee_role = 'expert'; }
+                        else if (action.action_assignee === '_analyst') { assignee_name = '分析员'; assignee_role = 'analyst'; }
+                        else if (action.action_assignee === '_responder') { assignee_name = '处置员'; assignee_role = 'responder'; }
+                        else if (action.action_assignee === '_coordinator') { assignee_name = '协调员'; assignee_role = 'coordinator'; }
                         const shortTaskId = action.task_id ? String(action.task_id).substring(0, 8) : '';
                         const shortActionId = action.action_id ? String(action.action_id).substring(0, 8) : '';
                         const idInfo = `${shortTaskId}->${shortActionId}`;
@@ -972,7 +975,16 @@ function addMessage(message) {
                         const shortActionId = command.action_id ? String(command.action_id).substring(0, 8) : '';
                         const shortCommandId = command.command_id ? String(command.command_id).substring(0, 8) : '';
                         const idInfo = `${shortTaskId}->${shortActionId}->${shortCommandId}`;
-                        messageContent += `<div class="command-item command-type-${command.command_type || 'default'}"><span class="command-name">${command.command_name}</span> <span class="command-type">${command.command_type || ''}</span> <span class="command-id">${idInfo}</span></div>`;
+                        let assignee_name = '未指定';
+                        let assignee_role = '';
+                        if (command.command_assignee === '_manager') { assignee_name = '安全管理员'; assignee_role = 'manager'; }
+                        else if (command.command_assignee === '_operator') { assignee_name = '安全工程师'; assignee_role = 'operator'; }
+                        else if (command.command_assignee === '_executor') { assignee_name = '执行器'; assignee_role = 'executor'; }
+                        else if (command.command_assignee === '_expert') { assignee_name = '安全专家'; assignee_role = 'expert'; }
+                        else if (command.command_assignee === '_analyst') { assignee_name = '分析员'; assignee_role = 'analyst'; }
+                        else if (command.command_assignee === '_responder') { assignee_name = '处置员'; assignee_role = 'responder'; }
+                        else if (command.command_assignee === '_coordinator') { assignee_name = '协调员'; assignee_role = 'coordinator'; }
+                        messageContent += `<div class="command-item command-type-${command.command_type || 'default'}"><span class="command-assignee role-${assignee_role}">@${assignee_name}</span> <span class="command-name">${command.command_name}</span> <span class="command-type">${command.command_type || ''}</span> <span class="command-id">${idInfo}</span></div>`;
                     });
                     messageContent += '</div>';
                 }
