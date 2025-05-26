@@ -170,6 +170,9 @@ function initWarRoom() {
     
     // 加载事件统计
     fetchEventStats();
+
+    // 获取当前驾驶模式
+    fetchDrivingMode();
     
     // 加载等待处理的执行任务
     fetchWaitingExecutions();
@@ -1102,21 +1105,47 @@ async function sendMessage() {
     }
 }
 
-// 切换模式
-function toggleMode() {
-    isAutoMode = !isAutoMode;
-    
+// 获取当前驾驶模式
+async function fetchDrivingMode() {
+    try {
+        const response = await fetch('/api/state/driving-mode', {
+            headers: getAuthHeaders()
+        });
+        if (response.ok) {
+            const data = await response.json();
+            isAutoMode = (data.data.mode === 'auto');
+            updateModeUI(false);
+        }
+    } catch (err) {
+        console.error('获取驾驶模式失败:', err);
+    }
+}
+
+function updateModeUI(showTip = true) {
     if (isAutoMode) {
         elements.modeSwitch.classList.remove('manual-mode');
         elements.modeSwitch.classList.add('auto-mode');
         elements.modeSwitch.querySelector('.switch-label').textContent = 'AI自动驾驶';
-        showToast('已切换到AI自动驾驶模式', 'info');
+        if (showTip) showToast('已切换到AI自动驾驶模式', 'info');
     } else {
         elements.modeSwitch.classList.remove('auto-mode');
         elements.modeSwitch.classList.add('manual-mode');
         elements.modeSwitch.querySelector('.switch-label').textContent = '人工操控';
-        showToast('已切换到人工操控模式', 'info');
+        if (showTip) showToast('已切换到人工操控模式', 'info');
     }
+}
+
+// 切换模式
+function toggleMode() {
+    isAutoMode = !isAutoMode;
+    updateModeUI();
+
+    const mode = isAutoMode ? 'auto' : 'manual';
+    fetch('/api/state/driving-mode', {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ mode })
+    }).catch(err => console.error('更新驾驶模式失败:', err));
 }
 
 // 显示事件详情模态框

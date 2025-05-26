@@ -68,6 +68,9 @@ app.register_blueprint(auth_bp, url_prefix='/api/auth')
 from app.controllers.prompt_controller import prompt_bp
 app.register_blueprint(prompt_bp, url_prefix='/api/prompt')
 
+from app.controllers.state_controller import state_bp
+app.register_blueprint(state_bp, url_prefix='/api/state')
+
 from app.controllers.socket_controller import register_socket_events
 register_socket_events(socketio)
 

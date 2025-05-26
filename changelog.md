@@ -3,6 +3,7 @@
 ## [未发布]
 
 ### 新增
+- 全局状态表 `global_settings`，支持存储并持久化系统级设置，如作战室的驾驶模式
 - 创建 `DeepSOC状态流转设计文档.md`，详细设计了系统中Event、Task、Action、Command、Execution等实体的状态定义与流转规则
 - 引入更加完善的状态流转设计，包括引入新增中间状态如`tasks_completed`、`to_be_summarized`、`summarized`等
 - 优化事件处理流程，明确状态依赖关系与状态更新机制
