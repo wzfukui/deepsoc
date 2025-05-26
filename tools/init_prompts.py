@@ -5,10 +5,10 @@ Usage:
     python tools/init_prompts.py
 """
 import os
-from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask
 from app.models.models import db, Prompt
+from app.prompts.default_prompts import DEFAULT_PROMPTS
 
 load_dotenv(override=True)
 
@@ -17,30 +17,9 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///dee
 
 db.init_app(app)
 
-PROMPT_DIR = Path(__file__).resolve().parent.parent / 'app' / 'prompts'
-ROLE_FILES = {
-    '_captain': 'role_soc_captain.md',
-    '_manager': 'role_soc_manager.md',
-    '_operator': 'role_soc_operator.md',
-    '_expert': 'role_soc_expert.md'
-}
-BACKGROUND_FILES = {
-    'background_security': 'background_security.md',
-    'background_soar_playbooks': 'background_soar_playbooks.md',
-    'mcp_tools': 'mcp_tools.md'
-}
-NAME_MAP = {
-    '_captain': 'role_soc_captain',
-    '_manager': 'role_soc_manager',
-    '_operator': 'role_soc_operator',
-    '_expert': 'role_soc_expert'
-}
 
-
-def load_file_to_db(name: str, path: Path):
-    if not path.exists():
-        return
-    content = path.read_text(encoding='utf-8')
+def load_prompt_to_db(name: str, content: str) -> None:
+    """Store the given prompt text into the database."""
     with app.app_context():
         prompt = Prompt.query.filter_by(name=name).first()
         if not prompt:
@@ -51,10 +30,8 @@ def load_file_to_db(name: str, path: Path):
 
 
 def main():
-    for role, filename in ROLE_FILES.items():
-        load_file_to_db(NAME_MAP[role], PROMPT_DIR / filename)
-    for name, filename in BACKGROUND_FILES.items():
-        load_file_to_db(name, PROMPT_DIR / filename)
+    for name, content in DEFAULT_PROMPTS.items():
+        load_prompt_to_db(name, content)
     print('Prompts imported.')
 
 
