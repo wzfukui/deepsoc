@@ -373,10 +373,12 @@ function setupSocketEventListeners() {
             scrollToBottom();
             
             // 如果有新任务或状态变化，刷新统计和事件详情 (此逻辑保留)
-            if (message.message_type === 'llm_response' || 
+            if (message.message_type === 'llm_response' ||
                 message.message_type === 'command_result' ||
                 message.message_type === 'execution_summary' ||
-                message.message_type === 'event_summary') {
+                message.message_type === 'execution_summary_generated' ||
+                message.message_type === 'event_summary' ||
+                message.message_type === 'event_summary_generated') {
                 fetchEventStats();
                 fetchEventDetails();
             }
@@ -993,7 +995,7 @@ function addMessage(message) {
                 messageContent += `<pre>${JSON.stringify(data.result, null, 2)}</pre>`;
             }
         }
-    } else if (message.message_type === 'execution_summary') {
+    } else if (message.message_type === 'execution_summary' || message.message_type === 'execution_summary_generated') {
         const content = message.message_content;
         let data = extractMessageData(content);
         if (message.message_from === '_expert' && data.ai_summary) {
@@ -1001,7 +1003,7 @@ function addMessage(message) {
         } else {
             messageContent += `<p>执行结果摘要:</p><p>${data.ai_summary}</p>`;
         }
-    } else if (message.message_type === 'event_summary') {
+    } else if (message.message_type === 'event_summary' || message.message_type === 'event_summary_generated') {
         const content = message.message_content;
         let data = extractMessageData(content);
         if (message.message_from === '_expert') {
@@ -1324,7 +1326,7 @@ function displayRoleHistory(messages, container) {
                 <p>命令执行结果:</p>
                 <pre><code>${JSON.stringify(resultData, null, 2)}</code></pre>
             `;
-        } else if (message.message_type === 'execution_summary') {
+        } else if (message.message_type === 'execution_summary' || message.message_type === 'execution_summary_generated') {
             // 执行结果摘要，尝试提取AI摘要并用markdown渲染
             const summaryData = typeof message.message_content === 'object' 
                 ? message.message_content 
@@ -1344,7 +1346,7 @@ function displayRoleHistory(messages, container) {
                 <p>执行结果摘要:</p>
                 <div class="role-history-markdown">${marked.parse(aiSummary)}</div>
             `;
-        } else if (message.message_type === 'event_summary') {
+        } else if (message.message_type === 'event_summary' || message.message_type === 'event_summary_generated') {
             // 事件总结，用markdown渲染
             const summaryData = typeof message.message_content === 'object' 
                 ? message.message_content 
@@ -1617,7 +1619,19 @@ function getSeverityText(severity) {
 }
 
 function extractMessageData(content) {
-    if (content && typeof content === 'object') {
+    if (!content) {
+        return content;
+    }
+    if (typeof content === 'string') {
+        try {
+            const parsed = JSON.parse(content);
+            if (parsed && typeof parsed === 'object') {
+                return (parsed.data !== undefined) ? parsed.data : parsed;
+            }
+        } catch (e) {
+            return content;
+        }
+    } else if (typeof content === 'object') {
         return (content.data !== undefined) ? content.data : content;
     }
     return content;
@@ -1628,7 +1642,9 @@ function getMessageTypeText(type) {
         'llm_response': 'AI响应',
         'command_result': '命令结果',
         'execution_summary': '执行摘要',
+        'execution_summary_generated': '执行摘要',
         'event_summary': '事件总结',
+        'event_summary_generated': '事件总结',
         'user_message': '用户消息',
         'system_notification': '系统通知'
     };
