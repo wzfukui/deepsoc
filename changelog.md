@@ -14,6 +14,7 @@
 - **`RabbitMQPublisher` 工具类 (`app/utils/mq_utils.py`)**: 为各 Agent 服务提供统一的消息发布接口，支持连接重试和持久化消息。
 - **`RabbitMQConsumer` 工具类 (`app/utils/mq_consumer.py`)**: 在主 Web 服务中实现，负责从 RabbitMQ 消费消息，支持连接重试和回调处理。
 - 新增提示词管理页面及相关 API，可在“设置”菜单下编辑各角色提示词
+- 新增 `prompts` 数据表，用于存储所有提示词和背景信息，前端可在线修改
 - **Agent 服务消息发布集成**: 
     - `captain_service.py`、`manager_service.py`、`operator_service.py`、`executor_service.py`、`expert_service.py`（包括其多线程worker）均已集成 `RabbitMQPublisher`，在生成业务消息（如LLM请求/响应、任务/动作/命令创建、执行结果、摘要生成、事件状态变更等）后，将消息发布到 RabbitMQ。
 - **主 Web 服务消息消费与 WebSocket 推送**: 

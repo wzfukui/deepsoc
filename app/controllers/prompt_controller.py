@@ -1,59 +1,62 @@
 import logging
-from pathlib import Path
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
+from app.models.models import Prompt, db
 
 prompt_bp = Blueprint('prompt', __name__)
 logger = logging.getLogger(__name__)
 
-PROMPT_DIR = Path(__file__).parent.parent / 'prompts'
-ROLE_FILES = {
-    '_captain': 'role_soc_captain.md',
-    '_manager': 'role_soc_manager.md',
-    '_operator': 'role_soc_operator.md',
-    '_expert': 'role_soc_expert.md'
+ROLE_NAMES = {
+    '_captain': 'role_soc_captain',
+    '_manager': 'role_soc_manager',
+    '_operator': 'role_soc_operator',
+    '_expert': 'role_soc_expert'
 }
 
-BACKGROUND_FILES = {
-    'background_security': 'background_security.md',
-    'background_soar_playbooks': 'background_soar_playbooks.md',
-    'mcp_tools': 'mcp_tools.md'
+BACKGROUND_NAMES = {
+    'background_security': 'background_security',
+    'background_soar_playbooks': 'background_soar_playbooks',
+    'mcp_tools': 'mcp_tools'
 }
 
 
 def _load_prompt(role: str) -> str:
-    file_path = PROMPT_DIR / ROLE_FILES[role]
-    if file_path.exists():
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    return ''
+    name = ROLE_NAMES[role]
+    prompt = Prompt.query.filter_by(name=name).first()
+    return prompt.content if prompt else ''
 
 
 def _save_prompt(role: str, content: str) -> None:
-    file_path = PROMPT_DIR / ROLE_FILES[role]
-    with open(file_path, 'w', encoding='utf-8') as f:
-        f.write(content)
+    name = ROLE_NAMES[role]
+    prompt = Prompt.query.filter_by(name=name).first()
+    if not prompt:
+        prompt = Prompt(name=name)
+        db.session.add(prompt)
+    prompt.content = content
+    db.session.commit()
 
 
 def _load_background(name: str) -> str:
-    file_path = PROMPT_DIR / BACKGROUND_FILES[name]
-    if file_path.exists():
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    return ''
+    key = BACKGROUND_NAMES[name]
+    prompt = Prompt.query.filter_by(name=key).first()
+    return prompt.content if prompt else ''
 
 
 def _save_background(name: str, content: str) -> None:
-    file_path = PROMPT_DIR / BACKGROUND_FILES[name]
-    with open(file_path, 'w', encoding='utf-8') as f:
-        f.write(content)
+    key = BACKGROUND_NAMES[name]
+    prompt = Prompt.query.filter_by(name=key).first()
+    if not prompt:
+        prompt = Prompt(name=key)
+        db.session.add(prompt)
+    prompt.content = content
+    db.session.commit()
 
 
 @prompt_bp.route('/list', methods=['GET'])
 @jwt_required()
 def list_prompts():
     """Return prompts for all supported roles."""
-    prompts = {role: _load_prompt(role) for role in ROLE_FILES}
+    prompts = {role: _load_prompt(role) for role in ROLE_NAMES}
     return jsonify({'status': 'success', 'data': prompts})
 
 
@@ -61,7 +64,7 @@ def list_prompts():
 @jwt_required()
 def handle_prompt(role):
     """Get or update prompt for a specific role."""
-    if role not in ROLE_FILES:
+    if role not in ROLE_NAMES:
         return jsonify({'status': 'error', 'message': '未知角色'}), 400
 
     if request.method == 'GET':
@@ -81,7 +84,7 @@ def handle_prompt(role):
 @jwt_required()
 def handle_background(name):
     """Get or update background files."""
-    if name not in BACKGROUND_FILES:
+    if name not in BACKGROUND_NAMES:
         return jsonify({'status': 'error', 'message': '未知文件'}), 400
 
     if request.method == 'GET':

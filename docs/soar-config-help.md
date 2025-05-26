@@ -1,6 +1,6 @@
 # Playbook配置信息样例
 
-DeepSOC默认对接的SOAR产品是编排自动化产品Octomation，因此需要用户从Octomation中提取相关参数信息放到[提示词文件模板](../app/prompts/background_soar_playbooks.md)中。
+DeepSOC默认对接的SOAR产品是编排自动化产品Octomation，因此需要用户从Octomation中提取相关参数信息，并导入到数据库的 `prompts` 表中（条目 `background_soar_playbooks`）。原始 [Markdown 模板](../app/prompts/background_soar_playbooks.md) 仅作为示例保留。
 
 DeepSOC调用SOAR所需要的参数存放在`.env`文件中，需单独配置。本文档讨论的是如何为（包含剧本信息的）提示词做准备。
 

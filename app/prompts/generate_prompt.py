@@ -1,34 +1,39 @@
 #!/usr/bin/env python3
 """Utility to build prompts for different roles."""
-from pathlib import Path
+from app.models.models import Prompt
 
-PROMPT_DIR = Path(__file__).parent
-ROLE_FILES = {
-    '_captain': 'role_soc_captain.md',
-    '_manager': 'role_soc_manager.md',
-    '_operator': 'role_soc_operator.md',
-    '_expert': 'role_soc_expert.md'
+ROLE_NAMES = {
+    '_captain': 'role_soc_captain',
+    '_manager': 'role_soc_manager',
+    '_operator': 'role_soc_operator',
+    '_expert': 'role_soc_expert',
 }
 
-BACKGROUND_FILE = PROMPT_DIR / 'background_security.md'
-PLAYBOOK_FILE = PROMPT_DIR / 'background_soar_playbooks.md'
+BACKGROUND_SECURITY = 'background_security'
+BACKGROUND_PLAYBOOKS = 'background_soar_playbooks'
 
 
 def generate_prompt(role: str) -> str:
     """Generate prompt text for the given role."""
-    role_file = PROMPT_DIR / ROLE_FILES.get(role, '')
-    if not role_file.exists():
+    name = ROLE_NAMES.get(role, '')
+    if not name:
         return ''
-    background_info = BACKGROUND_FILE.read_text(encoding='utf-8') if BACKGROUND_FILE.exists() else ''
-    playbook_list = PLAYBOOK_FILE.read_text(encoding='utf-8') if PLAYBOOK_FILE.exists() else ''
-    prompt = role_file.read_text(encoding='utf-8')
-    prompt = prompt.replace('{background_info}', background_info)
-    prompt = prompt.replace('{playbook_list}', playbook_list)
+
+    role_prompt = Prompt.query.filter_by(name=name).first()
+    if not role_prompt:
+        return ''
+
+    background = Prompt.query.filter_by(name=BACKGROUND_SECURITY).first()
+    playbooks = Prompt.query.filter_by(name=BACKGROUND_PLAYBOOKS).first()
+
+    prompt = role_prompt.content
+    prompt = prompt.replace('{background_info}', background.content if background else '')
+    prompt = prompt.replace('{playbook_list}', playbooks.content if playbooks else '')
     return prompt
 
 
 def main():
-    for role in ROLE_FILES:
+    for role in ROLE_NAMES:
         text = generate_prompt(role)
         print(f"==== {role} ====")
         print(text[:200] + ('...' if len(text) > 200 else ''))
