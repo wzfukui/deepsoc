@@ -887,16 +887,15 @@ function addMessage(message) {
     // Placeholder for detailed message content rendering logic from original addMessage:
     if (message.message_type === 'llm_request' || message.message_type.includes('_llm_request')) {
         let requestContent = '';
-        if (typeof message.message_content === 'object') {
-            if (message.message_content.type === 'llm_request' && message.message_content.data) {
-                requestContent = message.message_content.data;
-            } else if (message.message_content.data) {
-                requestContent = message.message_content.data;
+        let data = extractMessageData(message.message_content);
+        if (typeof data === 'object' && data !== null) {
+            if (typeof data.text === 'string') {
+                requestContent = data.text;
             } else {
-                requestContent = JSON.stringify(message.message_content);
+                requestContent = JSON.stringify(data);
             }
         } else {
-            requestContent = message.message_content;
+            requestContent = data;
         }
         messageContent += `<div class="llm-request-notification"><p>${requestContent}</p></div>`;
     } else if (message.message_type === 'llm_response' || message.message_type.includes('_llm_response')) {
