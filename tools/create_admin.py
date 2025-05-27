@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 
 # 加载环境变量
-load_dotenv()
+load_dotenv(override=True)
 
 # 创建Flask应用
 app = Flask(__name__)

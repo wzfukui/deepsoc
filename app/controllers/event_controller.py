@@ -31,7 +31,7 @@ def create_event():
         context=data.get('context', ''),
         source=data.get('source', 'manual'),
         severity=data.get('severity', 'medium'),
-        status='pending'
+        event_status='pending'
     )
     
     db.session.add(event)
@@ -88,25 +88,25 @@ def get_event_messages(event_id):
     """获取事件相关的所有消息"""
     from app.models import Message
     
-    # 获取last_id参数，用于增量获取消息
-    last_id = request.args.get('last_id', 0, type=int)
+    # 获取 last_message_db_id 参数，用于增量获取消息
+    last_message_db_id = request.args.get('last_message_db_id', 0, type=int)
     
-    # 获取role参数，用于按角色筛选消息
+    # 获取role参数，用于按角色筛选消息 (此功能保留)
     role = request.args.get('role')
     
     # 构建查询
     query = Message.query.filter_by(event_id=event_id)
     
-    # 如果指定了last_id，则只获取更新的消息
-    if last_id > 0:
-        query = query.filter(Message.id > last_id)
+    # 如果指定了 last_message_db_id，则只获取ID更大的消息
+    if last_message_db_id > 0:
+        query = query.filter(Message.id > last_message_db_id)
     
     # 如果指定了role，则按角色筛选
     if role:
         query = query.filter_by(message_from=role)
     
-    # 获取消息并排序
-    messages = query.order_by(Message.created_at.asc()).all()
+    # 获取消息并按数据库ID升序排序
+    messages = query.order_by(Message.id.asc()).all()
     
     return jsonify({
         'status': 'success',
@@ -284,9 +284,71 @@ def complete_execution(event_id, execution_id):
     
     # 广播执行任务状态更新
     broadcast_execution_update(execution)
-    
+
     return jsonify({
         'status': 'success',
         'message': '执行任务已完成',
         'data': execution.to_dict()
     })
+
+
+@event_bp.route('/<event_id>/hierarchy', methods=['GET'])
+@jwt_required()
+def get_event_hierarchy(event_id):
+    """获取事件及其关联实体的树状结构"""
+    from collections import defaultdict
+    from app.models import Task, Action, Command, Execution, Summary
+
+    event = Event.query.filter_by(event_id=event_id).first()
+    if not event:
+        return jsonify({'status': 'error', 'message': '事件不存在'}), 404
+
+    tasks = Task.query.filter_by(event_id=event_id).all()
+    actions = Action.query.filter_by(event_id=event_id).all()
+    commands = Command.query.filter_by(event_id=event_id).all()
+    executions = Execution.query.filter_by(event_id=event_id).all()
+    summaries = Summary.query.filter_by(event_id=event_id).all()
+
+    # 按ID映射，便于构建关系
+    action_map = defaultdict(list)
+    for action in actions:
+        action_map[action.task_id].append(action)
+
+    command_map = defaultdict(list)
+    for command in commands:
+        command_map[command.action_id].append(command)
+
+    execution_map = defaultdict(list)
+    for exe in executions:
+        execution_map[exe.command_id].append(exe)
+
+    summary_map = defaultdict(list)
+    for summary in summaries:
+        summary_map[summary.round_id].append(summary)
+
+    rounds = defaultdict(lambda: {'round_id': 0, 'tasks': [], 'summaries': []})
+
+    for task in tasks:
+        r = task.round_id or 0
+        round_data = rounds[r]
+        round_data['round_id'] = r
+        t_dict = task.to_dict()
+        t_dict['actions'] = []
+        for act in action_map.get(task.task_id, []):
+            a_dict = act.to_dict()
+            a_dict['commands'] = []
+            for cmd in command_map.get(act.action_id, []):
+                c_dict = cmd.to_dict()
+                c_dict['executions'] = [e.to_dict() for e in execution_map.get(cmd.command_id, [])]
+                a_dict['commands'].append(c_dict)
+            t_dict['actions'].append(a_dict)
+        round_data['tasks'].append(t_dict)
+
+    for r_id, sum_list in summary_map.items():
+        rounds[r_id]['round_id'] = r_id
+        rounds[r_id]['summaries'] = [s.to_dict() for s in sum_list]
+
+    # 按round_id排序输出列表
+    result = [rounds[r] for r in sorted(rounds.keys())]
+
+    return jsonify({'status': 'success', 'data': result})

@@ -2,6 +2,8 @@ import os
 import sys
 import argparse
 import logging
+import threading # Added for MQ Consumer
+import atexit # Added for graceful shutdown
 from flask import Flask, jsonify, render_template, redirect, url_for, request, make_response
 from flask_socketio import SocketIO
 from flask_migrate import Migrate
@@ -10,13 +12,15 @@ from functools import wraps
 from dotenv import load_dotenv
 from app.models import db
 from app.utils.logging_config import configure_logging
-from app.models.models import User
+from app.models.models import User, Prompt
+from app.prompts.default_prompts import DEFAULT_PROMPTS
+from app.utils.mq_consumer import RabbitMQConsumer # Added MQ Consumer
 
 # 配置日志
 logger = configure_logging()
 
 # 加载环境变量
-load_dotenv()
+load_dotenv(override=True)
 
 # 创建Flask应用
 app = Flask(__name__, 
@@ -29,8 +33,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # JWT配置
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'deepsoc_jwt_secret_key')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 86400))
-app.config['JWT_TOKEN_LOCATION'] = ['headers', 'cookies']  # 从头部和Cookie中获取令牌
-app.config['JWT_COOKIE_CSRF_PROTECT'] = False  # 简化起见，禁用CSRF保护
+app.config['JWT_TOKEN_LOCATION'] = ['headers', 'cookies']
+app.config['JWT_COOKIE_CSRF_PROTECT'] = False
 
 # 初始化JWT
 jwt = JWTManager(app)
@@ -41,31 +45,106 @@ db.init_app(app)
 # 初始化迁移
 migrate = Migrate(app, db)
 
-# 初始化SocketIO，添加更多配置选项
+# 初始化SocketIO
 socketio = SocketIO(
     app, 
     cors_allowed_origins="*",
-    async_mode='threading',  # 使用线程模式
-    ping_timeout=60,         # ping超时时间
-    ping_interval=25,        # ping间隔
-    engineio_logger=True,    # 启用引擎日志以便调试
-    logger=True,             # 启用SocketIO日志以便调试
-    manage_session=False,    # 不使用Flask会话管理
-    always_connect=True,     # 总是允许连接
-    max_http_buffer_size=1e8 # 增加HTTP缓冲区大小
+    async_mode='threading',
+    ping_timeout=60,
+    ping_interval=25,
+    engineio_logger=os.getenv('ENGINEIO_LOGGER', 'False').lower() == 'true', # Control via env var
+    logger=os.getenv('SOCKETIO_LOGGER', 'False').lower() == 'true',       # Control via env var
+    manage_session=False,
+    always_connect=True,
+    max_http_buffer_size=int(os.getenv('SOCKETIO_MAX_HTTP_BUFFER_SIZE', 100000000)) # Control via env var (1e8)
 )
 
 # 导入路由
 from app.controllers.event_controller import event_bp
 app.register_blueprint(event_bp, url_prefix='/api/event')
 
-# 导入认证路由
 from app.controllers.auth_controller import auth_bp
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 
-# 导入WebSocket事件处理
+from app.controllers.prompt_controller import prompt_bp
+app.register_blueprint(prompt_bp, url_prefix='/api/prompt')
+
+from app.controllers.state_controller import state_bp
+app.register_blueprint(state_bp, url_prefix='/api/state')
+
 from app.controllers.socket_controller import register_socket_events
 register_socket_events(socketio)
+
+# --- RabbitMQ Consumer Setup ---
+mq_consumer_thread = None
+mq_consumer = None
+
+def handle_mq_message_to_socketio(message_data):
+    """Callback function to process messages from RabbitMQ and emit them via SocketIO."""
+    event_id = message_data.get('event_id')
+    message_type = message_data.get('message_type', 'generic_notification') # Default type if not present
+    message_id = message_data.get('message_id', 'N/A')
+
+    if not event_id:
+        logger.warning(f"MQ Consumer: Received message (ID: {message_id}) without event_id. Cannot route to SocketIO room. Message: {message_data}")
+        return
+
+    # The message_data is already a dict from create_standard_message().to_dict()
+    # It should be directly usable by the frontend if it expects the Message model structure.
+    
+    # Determine the SocketIO event name. 
+    # For now, using 'new_message' for all, as previously used by broadcast_message.
+    # This could be made more specific based on message_type if frontend handles different events.
+    socketio_event_name = 'new_message' 
+    
+    logger.info(f"MQ Consumer: Relaying message (ID: {message_id}, Type: {message_type}) to SocketIO room '{event_id}' for event '{socketio_event_name}'")
+    try:
+        # Emit with app.app_context() to ensure context for operations like url_for if used by SocketIO internals
+        # although socketio.emit itself is generally thread-safe and handles context for its own operations.
+        with app.app_context(): 
+            socketio.emit(socketio_event_name, message_data, room=event_id)
+        logger.debug(f"MQ Consumer: Successfully emitted message ID {message_id} to room {event_id}.")
+    except Exception as e:
+        logger.error(f"MQ Consumer: Error emitting message ID {message_id} to SocketIO room '{event_id}': {e}")
+        logger.error(traceback.format_exc())
+
+def start_rabbitmq_consumer():
+    global mq_consumer, mq_consumer_thread
+    logger.info("Initializing RabbitMQ consumer...")
+    mq_consumer = RabbitMQConsumer(
+        # Uses default connection params from mq_consumer.py which read from .env
+        # queue_name can be specific if needed, default is fine
+        # routing_key default 'notifications.frontend.#' is also fine
+    )
+    
+    # Start consuming in a separate thread
+    # The start_consuming method is blocking, so it needs its own thread.
+    mq_consumer_thread = threading.Thread(
+        target=mq_consumer.start_consuming, 
+        args=(handle_mq_message_to_socketio,),
+        name="RabbitMQConsumerThread",
+        daemon=True # Daemon thread will exit when the main program exits
+    )
+    mq_consumer_thread.start()
+    logger.info("RabbitMQ consumer thread started.")
+
+def stop_rabbitmq_consumer():
+    global mq_consumer, mq_consumer_thread
+    if mq_consumer:
+        logger.info("Stopping RabbitMQ consumer...")
+        mq_consumer.stop_consuming()
+        if mq_consumer_thread and mq_consumer_thread.is_alive():
+            logger.info("Waiting for RabbitMQ consumer thread to join...")
+            mq_consumer_thread.join(timeout=10) # Wait for up to 10 seconds
+            if mq_consumer_thread.is_alive():
+                logger.warning("RabbitMQ consumer thread did not join in time.")
+            else:
+                logger.info("RabbitMQ consumer thread joined successfully.")
+    logger.info("RabbitMQ consumer stopped.")
+
+# Register the cleanup function to be called on exit
+atexit.register(stop_rabbitmq_consumer)
+# --- End RabbitMQ Consumer Setup ---
 
 # 定义登录检查装饰器
 def login_required(f):
@@ -130,6 +209,31 @@ def login():
 def warroom(event_id):
     return render_template('warroom.html', event_id=event_id)
 
+@app.route('/settings/prompts')
+@login_required
+def prompt_settings():
+    return render_template('prompt_management.html')
+
+@app.route('/settings/background-security')
+@login_required
+def background_security():
+    return render_template('background_security.html')
+
+@app.route('/settings/soar-playbooks')
+@login_required
+def soar_playbooks():
+    return render_template('soar_playbooks.html')
+
+@app.route('/settings/mcp-tools')
+@login_required
+def mcp_tools():
+    return render_template('mcp_tools.html')
+
+@app.route('/change-password')
+@login_required
+def change_password_page():
+    return render_template('change_password.html')
+
 @app.route('/health')
 def health():
     return jsonify({
@@ -151,6 +255,19 @@ def create_admin_user():
         if admin_exists:
             logger.info("管理员用户已存在，无需创建")
             return False
+
+def create_default_prompts():
+    """Load built-in prompt content into the database if not already present."""
+    with app.app_context():
+        for name, content in DEFAULT_PROMPTS.items():
+            prompt = Prompt.query.filter_by(name=name).first()
+            if not prompt:
+                prompt = Prompt(name=name)
+                db.session.add(prompt)
+            if not prompt.content:
+                prompt.content = content
+        db.session.commit()
+        logger.info("默认提示词导入完成")
         
         # 获取环境变量中的管理员信息
         admin_username = os.getenv('ADMIN_USERNAME', 'admin')
@@ -208,16 +325,24 @@ if __name__ == '__main__':
     if args.init:
         create_tables()
         create_admin_user()
+        create_default_prompts()
     
     if args.role:
+        # When running as an agent, do not start the MQ consumer or web server.
         start_agent(args.role)
     else:
-        # 启动Web服务器，添加更多选项
+        # This is the main web server process
+        logger.info("Starting DeepSOC Web Server and services...")
+        
+        # Start RabbitMQ consumer only when running as the main web server
+        start_rabbitmq_consumer()
+        
+        # 启动Web服务器
         socketio.run(
             app, 
             host=os.getenv('LISTEN_HOST', '0.0.0.0'), 
             port=int(os.getenv('LISTEN_PORT', 5007)), 
-            debug=True,
-            use_reloader=False,  # 禁用重载器，避免Socket.IO连接问题
-            allow_unsafe_werkzeug=True  # 允许在调试模式下使用Werkzeug
+            debug=(os.getenv('FLASK_DEBUG', 'False').lower() == 'true'), # Control via env var
+            use_reloader=False, # Important: reloader can cause issues with threads and SocketIO
+            allow_unsafe_werkzeug=(os.getenv('FLASK_DEBUG', 'False').lower() == 'true') # Werkzeug specific for debug
         ) 

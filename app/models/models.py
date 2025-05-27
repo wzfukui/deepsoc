@@ -49,7 +49,7 @@ class Event(db.Model):
     context = db.Column(db.Text)
     source = db.Column(db.String(64))
     severity = db.Column(db.String(32))
-    status = db.Column(db.String(32), default='pending')
+    event_status = db.Column(db.String(32), default='pending')
     current_round = db.Column(db.Integer, default=1)  # 当前处理轮次，默认为1
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -63,7 +63,8 @@ class Event(db.Model):
             'context': self.context,
             'source': self.source,
             'severity': self.severity,
-            'status': self.status,
+            'event_status': self.event_status,
+            'status': self.event_status,  # backward compatibility
             'current_round': self.current_round,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
@@ -291,4 +292,41 @@ class LLMRecord(db.Model):
             'completion_tokens': self.completion_tokens,
             'total_tokens': self.total_tokens,
             'cached_tokens': self.cached_tokens
-        } 
+        }
+
+
+class Prompt(db.Model):
+    """存储提示词和背景信息"""
+    __tablename__ = 'prompts'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(64), unique=True, nullable=False)
+    content = db.Column(db.Text, default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'content': self.content,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class GlobalSetting(db.Model):
+    """全局设置表，用于存储系统级状态"""
+    __tablename__ = 'global_settings'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    key = db.Column(db.String(64), unique=True, nullable=False)
+    value = db.Column(db.String(256), nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'key': self.key,
+            'value': self.value,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }

@@ -23,6 +23,15 @@
                     <li class="nav-item">
                         <a class="nav-link active" href="/">首页</a>
                     </li>
+                    <li class="nav-item dropdown d-none" id="settings-nav-item">
+                        <a class="nav-link dropdown-toggle" href="#" id="settings-dropdown" role="button" data-bs-toggle="dropdown">设置</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/settings/prompts">提示词管理</a></li>
+                            <li><a class="dropdown-item" href="/settings/background-security">安全背景</a></li>
+                            <li><a class="dropdown-item" href="/settings/soar-playbooks">SOAR剧本</a></li>
+                            <li><a class="dropdown-item" href="/settings/mcp-tools">MCP Tools</a></li>
+                        </ul>
+                    </li>
                 </ul>
                 <ul class="navbar-nav">
                     <!-- 登录前显示 -->
@@ -36,6 +45,7 @@
                             <span id="user-info">用户</span>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/change-password">修改密码</a></li>
                             <li><a class="dropdown-item" href="#" id="logout-btn">退出登录</a></li>
                         </ul>
                     </li>
