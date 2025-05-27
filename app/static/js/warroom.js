@@ -88,6 +88,7 @@ const elements = {
 
 // 存储所有消息的映射，用于源码查看
 const messagesMap = new Map();
+let currentSourceMessageId = null;
 
 // 页面加载完成后执行
 document.addEventListener('DOMContentLoaded', function() {
@@ -1557,9 +1558,12 @@ function showMessageSourceModal(messageId) {
         return;
     }
     
+    // 记录当前查看的消息ID
+    currentSourceMessageId = messageId;
+
     // 格式化JSON
     const formattedJson = JSON.stringify(message, null, 2);
-    
+
     // 使用markdown渲染
     elements.messageSourceContent.innerHTML = marked.parse('```json\n' + formattedJson + '\n```');
     
@@ -1567,9 +1571,23 @@ function showMessageSourceModal(messageId) {
     elements.messageSourceModal.style.display = 'flex';
 }
 
-// 将函数暴露到全局作用域
-window.showMessageSourceModal = showMessageSourceModal;
-
+// 复制消息源码到剪贴板
+function copyMessageSource() {
+    if (!currentSourceMessageId) return;
+    const message = messagesMap.get(currentSourceMessageId);
+    if (!message) {
+        showToast('无法找到消息数据', 'error');
+        return;
+    }
+    const text = JSON.stringify(message, null, 2);
+    navigator.clipboard.writeText(text)
+        .then(() => {
+            showToast('已复制到剪贴板', 'success');
+        })
+        .catch(() => {
+            showToast('复制失败', 'error');
+        });
+}
 // 滚动到底部
 function scrollToBottom() {
     // 使用requestAnimationFrame确保DOM更新后再滚动
@@ -2143,4 +2161,5 @@ function showExecutionNotification(execution) {
 
 // 将函数暴露到全局作用域
 window.showMessageSourceModal = showMessageSourceModal;
-window.toggleExecutionContext = toggleExecutionContext; 
+window.copyMessageSource = copyMessageSource;
+window.toggleExecutionContext = toggleExecutionContext;

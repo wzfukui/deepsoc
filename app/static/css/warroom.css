@@ -1065,6 +1065,22 @@ h1, h2, h3, h4, h5, h6, .cyber-btn, .section-title, .status-label {
     transition: all 0.3s ease;
 }
 
+/* 源码复制按钮样式 */
+.copy-btn {
+    background: none;
+    border: none;
+    color: var(--light-text);
+    font-size: 1.1rem;
+    cursor: pointer;
+    margin-right: 10px;
+    transition: all 0.3s ease;
+}
+
+.copy-btn:hover {
+    color: var(--primary-color);
+    text-shadow: var(--text-glow);
+}
+
 .cyber-modal-close:hover {
     color: var(--primary-color);
     text-shadow: var(--text-glow);
@@ -1470,6 +1486,8 @@ h1, h2, h3, h4, h5, h6, .cyber-btn, .section-title, .status-label {
     background-color: rgba(0, 0, 0, 0.2);
     border-left: 3px solid #607d8b;
     color: rgba(224, 224, 224, 0.7);
+    align-self: flex-end;
+    margin-left: auto;
 }
 
 .message-system .message-sender {
