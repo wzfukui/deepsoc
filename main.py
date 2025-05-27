@@ -125,6 +125,11 @@ def index():
 def login():
     return render_template('login.html')
 
+# 简单的项目管理页面
+@app.route('/projects')
+def projects():
+    return render_template('projects.html')
+
 @app.route('/warroom/<event_id>')
 @login_required
 def warroom(event_id):

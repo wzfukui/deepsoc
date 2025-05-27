@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projects</title>
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container py-4">
+        <h1>Projects</h1>
+        <select id="template-select" class="form-select mb-3"></select>
+        <div id="project-list"></div>
+    </div>
+
+    <script src="/static/js/projects.js"></script>
+    <script>
+        function loadTemplates() {
+            const select = document.getElementById('template-select');
+            select.innerHTML = `<option value="">${t('create_from_template')}</option>`;
+        }
+        function loadProjects() {
+            const container = document.getElementById('project-list');
+            const p = {id:1, name:'Demo', description:'示例项目', created_at:'2024-01-01'};
+            const created = p.created_at;
+            const card = document.createElement('div');
+            card.className = 'card mb-3';
+            card.innerHTML = `
+                <div class="project-header">
+                    <div class="project-title">${p.name}</div>
+                    <div class="project-meta">${t('created_at_label')} ${created}</div>
+                    <button class="action-btn invite-btn" data-id="${p.id}">${t('invite_guest')}</button>
+                    <a href="/index?project_id=${p.id}" class="action-btn start-btn">${t('start_interview')}</a>
+                    <button class="action-btn edit-btn">${t('edit')}</button>
+                </div>
+                ${p.description ? `<div class="project-desc">${p.description}</div>` : ''}
+            `;
+            container.appendChild(card);
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTemplates();
+            loadProjects();
+        });
+    </script>
+</body>
+</html>
