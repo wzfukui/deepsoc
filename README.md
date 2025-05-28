@@ -61,6 +61,7 @@ DeepSOC产品工作逻辑图
 - Python 3.8+
 - SQLite（试验阶段方便部署测试）
 - MySQL（推荐运行时使用）
+- RabbitMQ（消息队列，用于多Agent通信）
 - 自动化系统（支持SOAR编排自动化系统，推荐[OctoMation社区免费版](https://github.com/flagify-com/OctoMation)）
   - [剧本配置信息](docs/soar-config-help.md)
 
@@ -102,6 +103,16 @@ FLUSH PRIVILEGES;
 -- DATABASE_URL="mysql+pymysql://deepsoc_user:DeepSOC2025%40flagify.com@localhost:3306/deepsoc"
 ```
 
+2.3 RabbitMQ 准备
+
+安装并启动 RabbitMQ，用于多 Agent 之间的消息传递。可通过 Docker 快速启动：
+
+```bash
+docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+```
+
+启动后，在 `.env` 中配置 `RABBITMQ_HOST`、`RABBITMQ_USER` 等连接参数。
+
 3. 配置环境变量
 ```bash
 cp sample.env .env
@@ -115,8 +126,7 @@ cp sample.env .env
 ```bash
 # 初始化数据库
 python main.py -init
-# 首次初始化完成后，会创建admin/admin123的管理员账号
-# 可以通过修改.env定义初始化账号/密码
+# 脚本会自动导入根目录的 `initial_data.sql`，示例用户及事件随即可用
 ```
 
 ```bash
