@@ -269,7 +269,9 @@ def import_sql_file(sql_path: str = "initial_data.sql"):
             for statement in sql_content.split(";"):
                 stmt = statement.strip()
                 if stmt:
-                    connection.execute(text(stmt))
+                    # Use exec_driver_sql to avoid SQLAlchemy interpreting
+                    # colon-prefixed values inside JSON as bind parameters.
+                    connection.exec_driver_sql(stmt)
         logger.info(f"初始数据 {sql_path} 导入完成")
 
 
