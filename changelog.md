@@ -61,7 +61,8 @@
 - 修复轮次更新的重复增加问题，确保事件轮次只在`advance_event_to_next_round`函数中递增 
 - 修复了`captain_service.py`中处理轮次更新的逻辑错误，确保状态流转的连贯性和正确性
 - 修复了`task_status_worker`中调用已删除函数的问题，将`check_event_round_completion`替换为新的`check_and_update_event_tasks_completion`函数
-- 修复了多线程并发导致的数据库会话状态不一致问题，通过添加`db.session.expire_all()`确保每次查询都获取最新数据 
+- 修复了多线程并发导致的数据库会话状态不一致问题，通过添加`db.session.expire_all()`确保每次查询都获取最新数据
+- 修复允许修改初始管理员账号角色的漏洞，禁止更改`ADMIN_USERNAME`指定账户的角色
 
 ### 变更 (本次消息机制重大更新)
 - **消息传递流程重构**: 
