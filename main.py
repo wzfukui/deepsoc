@@ -250,10 +250,11 @@ def health():
     })
 
 def create_tables():
-    """创建所有数据库表"""
+    """重新创建数据库表，确保结构最新"""
     with app.app_context():
+        db.drop_all()
         db.create_all()
-        logger.info("数据库表创建成功")
+        logger.info("数据库表重新创建成功")
 
 def create_admin_user():
     """创建默认的管理员用户(如果不存在)"""
