@@ -51,6 +51,16 @@ function updateAuthUI(isAuthenticated) {
     }
 }
 
+function updateUserInfo() {
+    const userInfoElement = document.getElementById('user-info');
+    if (userInfoElement) {
+        const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+        if (userInfo.username) {
+            userInfoElement.textContent = userInfo.username;
+        }
+    }
+}
+
 function checkAuth() {
     const token = localStorage.getItem('access_token') || getCookie('access_token');
     updateAuthUI(!!token);
@@ -118,6 +128,7 @@ function savePrompt(role) {
 
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
+    updateUserInfo();
     loadPrompts();
     document.querySelectorAll('.save-prompt-btn').forEach(btn => {
         btn.addEventListener('click', () => savePrompt(btn.dataset.role));

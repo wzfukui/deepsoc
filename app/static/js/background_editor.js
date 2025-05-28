@@ -51,6 +51,16 @@ function updateAuthUI(isAuthenticated) {
     }
 }
 
+function updateUserInfo() {
+    const userInfoElement = document.getElementById('user-info');
+    if (userInfoElement) {
+        const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+        if (userInfo.username) {
+            userInfoElement.textContent = userInfo.username;
+        }
+    }
+}
+
 function checkAuth() {
     const token = localStorage.getItem('access_token') || getCookie('access_token');
     updateAuthUI(!!token);
@@ -110,6 +120,7 @@ function saveBackground() {
 
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
+    updateUserInfo();
     loadBackground();
     const saveBtn = document.getElementById('save-btn');
     if (saveBtn) saveBtn.addEventListener('click', saveBackground);
