@@ -69,32 +69,45 @@
                 </div>
                 <div class="modal-body">
                     <input type="hidden" id="user-id">
-                    <div class="mb-3">
-                        <label class="form-label">用户名</label>
-                        <input type="text" class="form-control" id="user-username" required>
+                    <div class="row mb-3 align-items-center">
+                        <label class="col-sm-3 col-form-label">用户名</label>
+                        <div class="col-sm-9">
+                            <input type="text" class="form-control" id="user-username" required>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">昵称</label>
-                        <input type="text" class="form-control" id="user-nickname">
+                    <div class="row mb-3 align-items-center">
+                        <label class="col-sm-3 col-form-label">昵称</label>
+                        <div class="col-sm-9">
+                            <input type="text" class="form-control" id="user-nickname">
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">邮箱</label>
-                        <input type="email" class="form-control" id="user-email" required>
+                    <div class="row mb-3 align-items-center">
+                        <label class="col-sm-3 col-form-label">邮箱</label>
+                        <div class="col-sm-9">
+                            <input type="email" class="form-control" id="user-email" required>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">手机号</label>
-                        <input type="text" class="form-control" id="user-phone">
+                    <div class="row mb-3 align-items-center">
+                        <label class="col-sm-3 col-form-label">手机号</label>
+                        <div class="col-sm-9">
+                            <input type="text" class="form-control" id="user-phone">
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">角色</label>
-                        <select class="form-select" id="user-role">
-                            <option value="user">用户</option>
-                            <option value="admin">管理员</option>
-                        </select>
+                    <div class="row mb-3 align-items-center">
+                        <label class="col-sm-3 col-form-label">角色</label>
+                        <div class="col-sm-9">
+                            <select class="form-select" id="user-role">
+                                <option value="user">用户</option>
+                                <option value="admin">管理员</option>
+                                <option value="auditor">审计员</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">密码 <small class="text-muted">(创建时必填)</small></label>
-                        <input type="password" class="form-control" id="user-password">
+                    <div class="row mb-3 align-items-center">
+                        <label class="col-sm-3 col-form-label">密码 <small class="text-muted">(创建时必填)</small></label>
+                        <div class="col-sm-9">
+                            <input type="password" class="form-control" id="user-password">
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
