@@ -2,8 +2,9 @@ import os
 import sys
 import argparse
 import logging
-import threading # Added for MQ Consumer
-import atexit # Added for graceful shutdown
+import threading  # Added for MQ Consumer
+import atexit  # Added for graceful shutdown
+from sqlalchemy import text
 from flask import Flask, jsonify, render_template, redirect, url_for, request, make_response
 from flask_socketio import SocketIO
 from flask_migrate import Migrate
@@ -12,7 +13,7 @@ from functools import wraps
 from dotenv import load_dotenv
 from app.models import db
 from app.utils.logging_config import configure_logging
-from app.models.models import User, Prompt
+from app.models.models import Prompt
 from app.prompts.default_prompts import DEFAULT_PROMPTS
 from app.utils.mq_consumer import RabbitMQConsumer # Added MQ Consumer
 
@@ -27,7 +28,7 @@ app = Flask(__name__,
             static_folder='app/static',
             template_folder='app/templates')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'deepsoc_secret_key')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///deepsoc.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'mysql+pymysql://root:123456@localhost:3306/deepsoc')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # JWT配置
@@ -71,6 +72,9 @@ app.register_blueprint(prompt_bp, url_prefix='/api/prompt')
 
 from app.controllers.state_controller import state_bp
 app.register_blueprint(state_bp, url_prefix='/api/state')
+
+from app.controllers.user_controller import user_bp
+app.register_blueprint(user_bp, url_prefix='/api/user')
 
 from app.controllers.socket_controller import register_socket_events
 register_socket_events(socketio)
@@ -229,6 +233,11 @@ def soar_playbooks():
 def mcp_tools():
     return render_template('mcp_tools.html')
 
+@app.route('/user-management')
+@login_required
+def user_management():
+    return render_template('user_management.html')
+
 @app.route('/change-password')
 @login_required
 def change_password_page():
@@ -242,19 +251,29 @@ def health():
     })
 
 def create_tables():
-    """创建所有数据库表"""
+    """重新创建数据库表，确保结构最新"""
     with app.app_context():
+        db.drop_all()
         db.create_all()
-        logger.info("数据库表创建成功")
+        logger.info("数据库表重新创建成功")
 
-def create_admin_user():
-    """创建默认的管理员用户(如果不存在)"""
+def import_sql_file(sql_path: str = "initial_data.sql"):
+    """Import initial data from a SQL file if it exists."""
+    if not os.path.exists(sql_path):
+        logger.warning(f"SQL file {sql_path} not found, skipping import")
+        return
     with app.app_context():
-        # 检查是否已存在管理员
-        admin_exists = User.query.filter_by(role='admin').first()
-        if admin_exists:
-            logger.info("管理员用户已存在，无需创建")
-            return False
+        engine = db.engine
+        with engine.begin() as connection:
+            sql_content = open(sql_path, "r", encoding="utf-8").read()
+            for statement in sql_content.split(";"):
+                stmt = statement.strip()
+                if stmt:
+                    # Use exec_driver_sql to avoid SQLAlchemy interpreting
+                    # colon-prefixed values inside JSON as bind parameters.
+                    connection.exec_driver_sql(stmt)
+        logger.info(f"初始数据 {sql_path} 导入完成")
+
 
 def create_default_prompts():
     """Load built-in prompt content into the database if not already present."""
@@ -268,31 +287,6 @@ def create_default_prompts():
                 prompt.content = content
         db.session.commit()
         logger.info("默认提示词导入完成")
-        
-        # 获取环境变量中的管理员信息
-        admin_username = os.getenv('ADMIN_USERNAME', 'admin')
-        admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
-        admin_email = os.getenv('ADMIN_EMAIL', 'admin@deepsoc.local')
-        
-        try:
-            # 创建管理员用户
-            admin_user = User(
-                username=admin_username,
-                email=admin_email,
-                role='admin'
-            )
-            admin_user.set_password(admin_password)
-            
-            # 保存到数据库
-            db.session.add(admin_user)
-            db.session.commit()
-            
-            logger.info(f"默认管理员账户创建成功: {admin_username}")
-            return True
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"创建默认管理员账户失败: {str(e)}")
-            return False
 
 def start_agent(role):
     """启动特定角色的Agent"""
@@ -324,8 +318,9 @@ if __name__ == '__main__':
     
     if args.init:
         create_tables()
-        create_admin_user()
-        create_default_prompts()
+        import_sql_file()
+        # import_sql_file()已经包含提示词初始化，这里不需要再调用create_default_prompts()
+        # create_default_prompts()
     
     if args.role:
         # When running as an agent, do not start the MQ consumer or web server.

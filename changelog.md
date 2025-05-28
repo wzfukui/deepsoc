@@ -17,6 +17,7 @@
 - 新增提示词管理页面及相关 API，可在“设置”菜单下编辑各角色提示词
 - 新增 `prompts` 数据表，用于存储所有提示词和背景信息，前端可在线修改
 - 初始化脚本现会自动导入内置的提示词，并移除相应 Markdown 模板文件
+- 初始化脚本支持从 `initial_data.sql` 导入示例数据，安装后即可体验
 - **Agent 服务消息发布集成**: 
     - `captain_service.py`、`manager_service.py`、`operator_service.py`、`executor_service.py`、`expert_service.py`（包括其多线程worker）均已集成 `RabbitMQPublisher`，在生成业务消息（如LLM请求/响应、任务/动作/命令创建、执行结果、摘要生成、事件状态变更等）后，将消息发布到 RabbitMQ。
 - **主 Web 服务消息消费与 WebSocket 推送**: 
@@ -61,7 +62,8 @@
 - 修复轮次更新的重复增加问题，确保事件轮次只在`advance_event_to_next_round`函数中递增 
 - 修复了`captain_service.py`中处理轮次更新的逻辑错误，确保状态流转的连贯性和正确性
 - 修复了`task_status_worker`中调用已删除函数的问题，将`check_event_round_completion`替换为新的`check_and_update_event_tasks_completion`函数
-- 修复了多线程并发导致的数据库会话状态不一致问题，通过添加`db.session.expire_all()`确保每次查询都获取最新数据 
+- 修复了多线程并发导致的数据库会话状态不一致问题，通过添加`db.session.expire_all()`确保每次查询都获取最新数据
+- 修复允许修改初始管理员账号角色的漏洞，禁止更改`ADMIN_USERNAME`指定账户的角色
 
 ### 变更 (本次消息机制重大更新)
 - **消息传递流程重构**: 
@@ -89,5 +91,7 @@
 - 新增修改密码页面及 `/api/auth/change-password` 接口，用户可在登录后通过右上角菜单修改密码。
 - 作战室 system 消息统一右侧对齐，展示更清晰。
 - 消息源码弹窗新增 "复制源码" 按钮，便于快速复制原始信息。
+- 设置页面顶部导航现会显示登录用户名。
 
 
+- 新增管理员用户管理功能，可在导航栏进入用户管理界面创建、修改和删除用户。

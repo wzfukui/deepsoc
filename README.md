@@ -59,8 +59,8 @@ DeepSOC产品工作逻辑图
 ### 环境要求
 
 - Python 3.8+
-- SQLite（试验阶段方便部署测试）
 - MySQL（推荐运行时使用）
+- RabbitMQ（消息队列，用于多Agent通信）
 - 自动化系统（支持SOAR编排自动化系统，推荐[OctoMation社区免费版](https://github.com/flagify-com/OctoMation)）
   - [剧本配置信息](docs/soar-config-help.md)
 
@@ -88,9 +88,9 @@ pip install -r requirements.txt
 
 ```
 
-2.2 MySQL准备（可选）
+2.2 MySQL准备
 
-非体验/测试环节，建议使用MySQL数据库，增加并发能力和可靠性。使用MySQL方式连接数据库，直接修改.env文件即可。
+使用MySQL方式连接数据库，直接修改.env文件即可。
 
 **请修改密码**
 > MySQL连接密码中的特殊字符串需要通过URL编码替代
@@ -101,6 +101,24 @@ GRANT ALL PRIVILEGES ON deepsoc.* TO 'deepsoc_user'@'localhost';
 FLUSH PRIVILEGES;
 -- DATABASE_URL="mysql+pymysql://deepsoc_user:DeepSOC2025%40flagify.com@localhost:3306/deepsoc"
 ```
+
+2.3 RabbitMQ 准备
+
+安装并启动 RabbitMQ，用于多 Agent 之间的消息传递。
+
+可通过 Docker 快速启动一个用于测试的RabbitMQ服务：
+
+```bash
+# 生产环境建议修改为强壮密码
+docker run -d --name rabbitmq \
+  -p 5672:5672 \
+  -p 15672:15672 \
+  -e RABBITMQ_DEFAULT_USER=guest \
+  -e RABBITMQ_DEFAULT_PASS=guest \
+  rabbitmq:3-management
+```
+
+启动后，在 `.env` 中配置 `RABBITMQ_HOST`、`RABBITMQ_USER` 等连接参数。
 
 3. 配置环境变量
 ```bash
@@ -113,10 +131,9 @@ cp sample.env .env
 为了方便管理，调试和优化改进，我们为每个角色启动了单独的进程。
 
 ```bash
-# 初始化数据库
+# 初始化数据库（注意，会删除deepsoc数据库中所有历史数据）
 python main.py -init
-# 首次初始化完成后，会创建admin/admin123的管理员账号
-# 可以通过修改.env定义初始化账号/密码
+# 脚本会自动导入根目录的 `initial_data.sql`，示例用户及事件随即可用
 ```
 
 ```bash

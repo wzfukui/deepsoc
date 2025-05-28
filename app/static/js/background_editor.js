@@ -38,15 +38,32 @@ function updateAuthUI(isAuthenticated) {
     const loginNavItem = document.getElementById('login-nav-item');
     const userNavItem = document.getElementById('user-nav-item');
     const settingsNavItem = document.getElementById('settings-nav-item');
+    const userMgmtNavItem = document.getElementById('user-management-nav-item');
     if (loginNavItem && userNavItem) {
         if (isAuthenticated) {
             loginNavItem.classList.add('d-none');
             userNavItem.classList.remove('d-none');
             if (settingsNavItem) settingsNavItem.classList.remove('d-none');
+            if (userMgmtNavItem) {
+                const info = JSON.parse(localStorage.getItem('user_info') || '{}');
+                if (info.role === 'admin') userMgmtNavItem.classList.remove('d-none');
+                else userMgmtNavItem.classList.add('d-none');
+            }
         } else {
             loginNavItem.classList.remove('d-none');
             userNavItem.classList.add('d-none');
             if (settingsNavItem) settingsNavItem.classList.add('d-none');
+            if (userMgmtNavItem) userMgmtNavItem.classList.add('d-none');
+        }
+    }
+}
+
+function updateUserInfo() {
+    const userInfoElement = document.getElementById('user-info');
+    if (userInfoElement) {
+        const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+        if (userInfo.username) {
+            userInfoElement.textContent = userInfo.username;
         }
     }
 }
@@ -110,6 +127,7 @@ function saveBackground() {
 
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
+    updateUserInfo();
     loadBackground();
     const saveBtn = document.getElementById('save-btn');
     if (saveBtn) saveBtn.addEventListener('click', saveBackground);

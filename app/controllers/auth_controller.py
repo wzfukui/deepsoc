@@ -210,7 +210,9 @@ def create_user():
         # 创建新用户
         new_user = User(
             username=data['username'],
+            nickname=data.get('nickname'),
             email=data['email'],
+            phone=data.get('phone'),
             role=data.get('role', 'user')
         )
         new_user.set_password(data['password'])
@@ -226,7 +228,9 @@ def create_user():
             'message': '用户账户创建成功',
             'user': {
                 'username': new_user.username,
+                'nickname': new_user.nickname,
                 'email': new_user.email,
+                'phone': new_user.phone,
                 'role': new_user.role
             }
         }), 201
