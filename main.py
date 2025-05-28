@@ -72,6 +72,9 @@ app.register_blueprint(prompt_bp, url_prefix='/api/prompt')
 from app.controllers.state_controller import state_bp
 app.register_blueprint(state_bp, url_prefix='/api/state')
 
+from app.controllers.user_controller import user_bp
+app.register_blueprint(user_bp, url_prefix='/api/user')
+
 from app.controllers.socket_controller import register_socket_events
 register_socket_events(socketio)
 
@@ -228,6 +231,11 @@ def soar_playbooks():
 @login_required
 def mcp_tools():
     return render_template('mcp_tools.html')
+
+@app.route('/user-management')
+@login_required
+def user_management():
+    return render_template('user_management.html')
 
 @app.route('/change-password')
 @login_required
