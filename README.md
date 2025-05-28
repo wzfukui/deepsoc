@@ -59,7 +59,6 @@ DeepSOC产品工作逻辑图
 ### 环境要求
 
 - Python 3.8+
-- SQLite（试验阶段方便部署测试）
 - MySQL（推荐运行时使用）
 - RabbitMQ（消息队列，用于多Agent通信）
 - 自动化系统（支持SOAR编排自动化系统，推荐[OctoMation社区免费版](https://github.com/flagify-com/OctoMation)）
@@ -89,9 +88,9 @@ pip install -r requirements.txt
 
 ```
 
-2.2 MySQL准备（可选）
+2.2 MySQL准备
 
-非体验/测试环节，建议使用MySQL数据库，增加并发能力和可靠性。使用MySQL方式连接数据库，直接修改.env文件即可。
+使用MySQL方式连接数据库，直接修改.env文件即可。
 
 **请修改密码**
 > MySQL连接密码中的特殊字符串需要通过URL编码替代
@@ -105,10 +104,18 @@ FLUSH PRIVILEGES;
 
 2.3 RabbitMQ 准备
 
-安装并启动 RabbitMQ，用于多 Agent 之间的消息传递。可通过 Docker 快速启动：
+安装并启动 RabbitMQ，用于多 Agent 之间的消息传递。
+
+可通过 Docker 快速启动一个用于测试的RabbitMQ服务：
 
 ```bash
-docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+# 生产环境建议修改为强壮密码
+docker run -d --name rabbitmq \
+  -p 5672:5672 \
+  -p 15672:15672 \
+  -e RABBITMQ_DEFAULT_USER=guest \
+  -e RABBITMQ_DEFAULT_PASS=guest \
+  rabbitmq:3-management
 ```
 
 启动后，在 `.env` 中配置 `RABBITMQ_HOST`、`RABBITMQ_USER` 等连接参数。
