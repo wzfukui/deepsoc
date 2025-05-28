@@ -12,7 +12,9 @@ class User(db.Model):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(64), nullable=False, unique=True)
+    nickname = db.Column(db.String(64))
     email = db.Column(db.String(120), nullable=False, unique=True)
+    phone = db.Column(db.String(32))
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(32), default='user')  # admin, user
     last_login_at = db.Column(db.DateTime)
@@ -30,7 +32,9 @@ class User(db.Model):
         return {
             'id': self.id,
             'username': self.username,
+            'nickname': self.nickname,
             'email': self.email,
+            'phone': self.phone,
             'role': self.role,
             'last_login_at': self.last_login_at.isoformat() if self.last_login_at else None,
             'is_active': self.is_active,
