@@ -1,5 +1,6 @@
 import logging
 from flask import Blueprint, request, jsonify
+import os
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy.exc import IntegrityError
 
@@ -73,6 +74,10 @@ def update_user(user_id):
     if not user:
         return jsonify({'status': 'error', 'message': '用户不存在'}), 404
     data = request.get_json() or {}
+    admin_username = os.getenv('ADMIN_USERNAME', 'admin')
+    if user.username == admin_username and 'role' in data:
+        if data['role'] != user.role:
+            return jsonify({'status': 'error', 'message': '初始管理员角色不可修改'}), 400
     if 'email' in data and data['email']:
         user.email = data['email']
     if 'nickname' in data:
