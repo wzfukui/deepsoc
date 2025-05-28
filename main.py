@@ -28,7 +28,7 @@ app = Flask(__name__,
             static_folder='app/static',
             template_folder='app/templates')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'deepsoc_secret_key')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///deepsoc.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'mysql+pymysql://root:123456@localhost:3306/deepsoc')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # JWT配置
@@ -319,7 +319,8 @@ if __name__ == '__main__':
     if args.init:
         create_tables()
         import_sql_file()
-        create_default_prompts()
+        # import_sql_file()已经包含提示词初始化，这里不需要再调用create_default_prompts()
+        # create_default_prompts()
     
     if args.role:
         # When running as an agent, do not start the MQ consumer or web server.

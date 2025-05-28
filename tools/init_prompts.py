@@ -13,7 +13,7 @@ from app.prompts.default_prompts import DEFAULT_PROMPTS
 load_dotenv(override=True)
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///deepsoc.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'mysql+pymysql://deepsoc_user:deepsoc_password@localhost:3306/deepsoc')
 
 db.init_app(app)
 

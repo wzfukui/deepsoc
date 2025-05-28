@@ -131,7 +131,7 @@ cp sample.env .env
 为了方便管理，调试和优化改进，我们为每个角色启动了单独的进程。
 
 ```bash
-# 初始化数据库
+# 初始化数据库（注意，会删除deepsoc数据库中所有历史数据）
 python main.py -init
 # 脚本会自动导入根目录的 `initial_data.sql`，示例用户及事件随即可用
 ```
