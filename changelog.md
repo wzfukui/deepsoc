@@ -68,6 +68,7 @@
 - 修复了`task_status_worker`中调用已删除函数的问题，将`check_event_round_completion`替换为新的`check_and_update_event_tasks_completion`函数
 - 修复了多线程并发导致的数据库会话状态不一致问题，通过添加`db.session.expire_all()`确保每次查询都获取最新数据
 - 修复允许修改初始管理员账号角色的漏洞，禁止更改`ADMIN_USERNAME`指定账户的角色
+- 修复事件消息接口导入 `User` 模型失败的问题，确保正确返回发送者昵称
 
 ### 变更 (本次消息机制重大更新)
 - **消息传递流程重构**: 

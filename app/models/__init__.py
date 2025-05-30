@@ -9,6 +9,7 @@ from app.models.models import (
     Summary,
     Prompt,
     GlobalSetting,
+    User,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     'Summary',
     'Prompt',
     'GlobalSetting',
+    'User',
 ]
