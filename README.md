@@ -174,6 +174,11 @@ python tools/run_all_agents.py
 
 ![](app/static/images/deepsoc-warroom.jpg)
 
+### 在作战室发送消息
+
+作战室页面支持用户输入文本指令。发送的消息会通过 WebSocket 实时广播给所有在线用户，
+并以蓝色背景靠右显示，便于区分。
+
 ### 查看消息原始数据结构
 
 ![](app/static/images/deepsoc-warroom-message-structure.jpg)

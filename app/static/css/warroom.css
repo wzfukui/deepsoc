@@ -237,10 +237,14 @@ h1, h2, h3, h4, h5, h6, .cyber-btn, .section-title, .status-label {
 
 .message-user {
     border-left: none;
-    border-right: 3px solid #607d8b;
-    background-color: rgba(96, 125, 139, 0.15);
+    border-right: 3px solid var(--info-color);
+    background-color: rgba(0, 168, 255, 0.15);
     align-self: flex-end;
     margin-left: auto;
+}
+
+.message-user .message-sender {
+    color: var(--info-color);
 }
 
 .message-header {

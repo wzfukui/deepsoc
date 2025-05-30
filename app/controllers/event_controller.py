@@ -185,13 +185,19 @@ def send_message(event_id):
             'message': '事件不存在'
         }), 404
     
-    # 创建消息
+    # 创建消息，支持扩展不同类型的内容
+    content_type = data.get('content_type', 'text')
+    message_content = {
+        'type': content_type,
+        'text': data.get('message')
+    }
+
     message = Message(
         message_id=str(uuid.uuid4()),
         event_id=event_id,
         message_from=data.get('sender', 'user'),
         message_type='user_message',
-        message_content=data.get('message')
+        message_content=message_content
     )
     
     # 广播消息

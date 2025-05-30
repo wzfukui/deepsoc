@@ -1070,14 +1070,15 @@ function toggleCollapsible(id) {
 
 // 发送消息
 async function sendMessage() {
-    const messageInput = document.getElementById('user-message');
+    // 使用统一的输入框，预留扩展空间
+    const messageInput = elements.userInput;
     const message = messageInput.value.trim();
     
     if (!message) return;
     
     try {
         // 禁用发送按钮
-        const sendButton = document.getElementById('send-message-btn');
+        const sendButton = elements.sendButton;
         sendButton.disabled = true;
         
         const response = await fetch(`/api/event/send_message/${eventId}`, {
@@ -1085,7 +1086,8 @@ async function sendMessage() {
             headers: getAuthHeaders(),
             body: JSON.stringify({
                 message: message,
-                sender: 'user'
+                sender: 'user',
+                content_type: 'text' // 未来可扩展为 voice、image、file 等
             }),
             credentials: 'include'
         });
@@ -1112,7 +1114,7 @@ async function sendMessage() {
         showToast('网络错误，请稍后重试', 'error');
     } finally {
         // 启用发送按钮
-        const sendButton = document.getElementById('send-message-btn');
+        const sendButton = elements.sendButton;
         sendButton.disabled = false;
     }
 }
