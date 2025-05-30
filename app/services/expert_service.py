@@ -287,7 +287,7 @@ def update_task_status(task_id):
     logger.info(f"更新任务状态: {task_id} -> {task.task_status}")
     
     # 检查是否需要更新事件轮次状态
-    check_event_round_completion(task.event_id, task.round_id)
+    check_and_update_event_tasks_completion(task.event_id, task.round_id)
 
 def get_event_rounds_with_completed_tasks():
     """获取所有任务已完成但事件轮次状态未更新的事件轮次
@@ -297,6 +297,11 @@ def get_event_rounds_with_completed_tasks():
     """
     # 查询所有处理中状态的事件
     events = Event.query.filter_by(status='processing').all()
+    
+    if not events:
+        return []
+    
+    logger.info(f"找到 {len(events)} 个processing状态的事件")
     
     # 获取所有事件的当前轮次任务完成情况
     result = []
@@ -320,30 +325,61 @@ def get_event_rounds_with_completed_tasks():
         
         # 如果所有任务都已完成，添加到结果列表
         if all_completed:
-            result.append((event.event_id, current_round))
+            # 检查所有执行结果是否都已完成
+            executions = Execution.query.filter_by(event_id=event.event_id, round_id=current_round).all()
+            if executions:
+                all_executions_completed = True
+                for execution in executions:
+                    if execution.execution_status not in ['summarized', 'failed']:
+                        all_executions_completed = False
+                        break
+                if all_executions_completed:
+                    result.append((event.event_id, current_round))
+                    logger.info(f"事件 {event.event_id} 轮次 {current_round} 所有任务和执行都已完成")
+            else:
+                result.append((event.event_id, current_round))
+                logger.info(f"事件 {event.event_id} 轮次 {current_round} 所有任务已完成，没有执行记录")
     
     return result
 
-def check_event_round_completion(event_id, round_id):
-    """检查事件轮次下的所有任务是否已完成
+def check_and_update_event_tasks_completion(event_id, round_id):
+    """检查事件轮次下的所有任务是否已完成，并更新事件状态
+    
+    统一处理任务完成检查和状态更新逻辑，将事件状态更新为tasks_completed
     
     Args:
         event_id: 事件ID
         round_id: 轮次ID
     
     Returns:
-        是否所有任务都已完成
+        是否所有任务都已完成并成功更新状态
     """
+    # 刷新会话，确保获取最新数据
+    db.session.expire_all()
+    
     # 获取事件轮次下的所有任务
     tasks = Task.query.filter_by(event_id=event_id, round_id=round_id).all()
     
     # 如果没有任务记录，返回False
     if not tasks:
+        logger.warning(f"事件 {event_id} 轮次 {round_id} 没有任务记录")
+        return False
+    
+    # 获取事件
+    event = Event.query.filter_by(event_id=event_id).first()
+    if not event:
+        logger.warning(f"事件不存在: {event_id}")
+        return False
+    
+    # 检查事件当前状态
+    if event.status != 'processing':
+        logger.info(f"事件 {event_id} 当前状态不是processing，而是 {event.status}，跳过检查")
         return False
     
     # 检查是否所有任务都已完成
     for task in tasks:
         if task.task_status not in ['completed', 'failed']:
+            logger.debug(f"事件 {event_id} 轮次 {round_id} 任务 {task.task_id} 状态为 {task.task_status}，轮次未完成")
             return False
     
     # 检查所有执行结果是否都已完成或失败
@@ -352,76 +388,108 @@ def check_event_round_completion(event_id, round_id):
     # 如果有执行记录，检查它们的状态
     if executions:
         for execution in executions:
-            # 如果有任何执行结果处于waiting或processing状态，则认为轮次未完成
-            if execution.execution_status in ['waiting', 'processing', 'completed']:
+            # 只有summarized或failed状态的执行被认为是已完成
+            if execution.execution_status not in ['summarized', 'failed']:
                 logger.info(f"事件 {event_id} 轮次 {round_id} 有执行结果处于 {execution.execution_status} 状态，轮次未完成")
                 return False
-    
-    # 更新事件轮次状态
-    update_event_round_status(event_id, round_id)
-    
-    return True
-
-def update_event_round_status(event_id, round_id):
-    """更新事件轮次状态
-    
-    Args:
-        event_id: 事件ID
-        round_id: 轮次ID
-    """
-    # 获取事件
-    event = Event.query.filter_by(event_id=event_id).first()
-    if not event:
-        logger.warning(f"事件不存在: {event_id}")
-        return
-    
-    # 获取事件轮次下的所有任务
-    tasks = Task.query.filter_by(event_id=event_id, round_id=round_id).all()
     
     # 检查是否有失败的任务
     has_failed = any(task.task_status == 'failed' for task in tasks)
     
-    # 检查所有执行结果是否都已完成或失败
-    executions = Execution.query.filter_by(event_id=event_id, round_id=round_id).all()
+    # 再次刷新会话并重新获取事件，确保状态最新
+    db.session.expire_all()
+    event = Event.query.filter_by(event_id=event_id).first()
     
-    # 如果有执行结果处于waiting或processing状态，则不更新事件状态
-    if executions and any(execution.execution_status in ['waiting', 'processing', 'completed'] for execution in executions):
-        logger.info(f"事件 {event_id} 轮次 {round_id} 有执行结果未完成，不更新事件状态")
-        return
+    # 如果事件在此期间被更新，再次检查状态
+    if not event or event.status != 'processing':
+        logger.info(f"事件 {event_id} 状态已被其他进程更新，当前状态: {event.status if event else '不存在'}，跳过更新")
+        return False
     
     # 更新事件状态
     if has_failed:
         event.status = 'failed'
+        logger.info(f"事件 {event_id} 有失败的任务，将状态设置为 failed")
     else:
-        # 更新事件的当前轮次
-        event.current_round = round_id
-        
-        # 当前轮次的任务已完成，将状态设置为round_finished
-        event.status = 'round_finished'
-        
-        # 生成事件总结
-        db.session.commit()
-        logger.info(f"更新事件轮次状态: {event_id}, 轮次: {round_id} -> {event.status}, 当前轮次: {event.current_round}")
-        generate_event_summary(event_id)
-        
-        # 如果已经达到最大轮次，则标记为已完成
-        if round_id >= config.EVENT_MAX_ROUND:
-            event.status = 'completed'
-            db.session.commit()
-            logger.info(f"事件已达到最大轮次，标记为已完成: {event_id}, 最终状态: {event.status}")
-            return
+        # 当前轮次的任务已完成，将状态设置为tasks_completed
+        event.status = 'tasks_completed'
+        logger.info(f"事件 {event_id} 轮次 {round_id} 所有任务已完成，将状态设置为 tasks_completed")
     
     db.session.commit()
-    logger.info(f"更新事件轮次状态: {event_id}, 轮次: {round_id} -> {event.status}, 当前轮次: {event.current_round}")
+    
+    return True
 
-def get_events_for_summary():
-    """获取需要生成总结的事件
+def get_events_for_summarizing():
+    """获取需要开始生成总结的事件
     
     Returns:
         事件列表
     """
-    # 只查询round_finished状态的事件，不包括completed状态
+    # 刷新会话，确保获取最新数据
+    db.session.expire_all()
+    
+    # 查询tasks_completed状态的事件
+    events = Event.query.filter_by(status='tasks_completed').all()
+    
+    if events:
+        logger.info(f"找到 {len(events)} 个待开始生成总结的事件，状态: tasks_completed")
+    
+    return events
+
+def get_events_to_be_summarized():
+    """获取已经标记为待生成总结的事件
+    
+    Returns:
+        事件列表
+    """
+    # 刷新会话，确保获取最新数据
+    db.session.expire_all()
+    
+    # 查询to_be_summarized状态的事件
+    events = Event.query.filter_by(status='to_be_summarized').all()
+    
+    if events:
+        logger.info(f"找到 {len(events)} 个待生成总结的事件，状态: to_be_summarized")
+        for event in events:
+            debug_event_status(event.event_id)
+    
+    # 进行诊断，检查round_finished状态的事件
+    round_finished_events = Event.query.filter_by(status='round_finished').all()
+    if round_finished_events:
+        logger.warning(f"【事件诊断】发现 {len(round_finished_events)} 个round_finished状态的事件")
+        for event in round_finished_events:
+            debug_event_status(event.event_id)
+    
+    return events
+
+def get_events_for_next_round():
+    """获取需要推进到下一轮的事件
+    
+    Returns:
+        事件列表
+    """
+    # 刷新会话，确保获取最新数据
+    db.session.expire_all()
+    
+    # 查询round_finished状态的事件
     events = Event.query.filter_by(status='round_finished').all()
+    
+    if events:
+        logger.info(f"找到 {len(events)} 个待推进到下一轮的事件，状态: round_finished")
+        for event in events:
+            debug_event_status(event.event_id)
+    
+    # 进行诊断，检查其他状态的事件
+    all_events = Event.query.all()
+    logger.info(f"【事件诊断】系统中共有 {len(all_events)} 个事件")
+    
+    status_counts = {}
+    for event in all_events:
+        if event.status not in status_counts:
+            status_counts[event.status] = 0
+        status_counts[event.status] += 1
+    
+    for status, count in status_counts.items():
+        logger.info(f"【事件诊断】状态为 {status} 的事件有 {count} 个")
     
     return events
 
@@ -431,17 +499,18 @@ def generate_event_summary(event_id):
     Args:
         event_id: 事件ID
     """
+    # 刷新会话，确保获取最新数据
+    db.session.expire_all()
+    
     # 获取事件
     event = Event.query.filter_by(event_id=event_id).first()
     if not event:
         logger.warning(f"事件不存在: {event_id}")
         return
     
-    # 只有round_finished和completed状态的事件才生成总结。
-    # 因为round_finished状态的事件，表示当前轮次的事件已经处理完成。
-    # completed状态的事件，表示所有轮次的事件已经处理完成。
-    if event.status not in ['round_finished', 'completed']:
-        logger.info(f"事件状态不是round_finished/completed，不生成总结: {event_id}, 当前状态: {event.status}")
+    # 只有to_be_summarized状态的事件才生成总结
+    if event.status != 'to_be_summarized':
+        logger.info(f"事件状态不是to_be_summarized，不生成总结: {event_id}, 当前状态: {event.status}")
         return
     
     try:
@@ -594,6 +663,14 @@ def generate_event_summary(event_id):
             logger.warning(f"解析事件总结时出错: {str(e)} ，使用原始响应作为总结")
             summary_text = response  # 使用原始响应作为总结
         
+        # 刷新会话，确保获取最新数据
+        db.session.expire_all()
+        # 重新获取事件，以防状态在生成总结过程中被修改
+        event = Event.query.filter_by(event_id=event_id).first()
+        if not event or event.status != 'to_be_summarized':
+            logger.warning(f"事件状态已改变，取消总结保存: {event_id}, 当前状态: {event.status if event else '不存在'}")
+            return
+            
         # 创建总结记录
         summary = Summary(
             summary_id=str(uuid.uuid4()),
@@ -603,6 +680,10 @@ def generate_event_summary(event_id):
             event_suggestion=""
         )
         db.session.add(summary)
+        
+        # 更新事件状态为summarized
+        event.status = 'summarized'
+        
         db.session.commit()
         logger.info(f"事件总结已保存: {event_id}")
         
@@ -733,13 +814,24 @@ def task_status_worker(app):
                 logger.error(f"处理任务状态更新时出错: {str(e)}")
                 time.sleep(15)
 
-# 线程函数：处理事件轮次状态更新
+# 线程函数：处理事件轮次状态更新（处理中 -> 任务完成）
 def event_round_status_worker(app):
-    """处理事件轮次状态更新的工作线程"""
+    """处理事件轮次状态更新的工作线程
+    
+    该线程仅负责检测任务完成情况，将事件从processing状态更新为tasks_completed
+    """
     with app.app_context():
         logger.info("启动事件轮次状态更新线程")
+        
+        # 初始睡眠时间和最大睡眠时间（秒）
+        sleep_time = 5
+        max_sleep_time = 10
+        
         while True:
             try:
+                # 刷新会话，确保获取最新数据
+                db.session.expire_all()
+                
                 # 获取待处理的事件轮次
                 pending_rounds = get_event_rounds_with_completed_tasks()
                 
@@ -748,42 +840,179 @@ def event_round_status_worker(app):
                     
                     # 处理每个事件轮次
                     for event_id, round_id in pending_rounds:
-                        if not check_event_round_completion(event_id, round_id):
-                            time.sleep(10)
+                        # 检查任务是否完成，如果完成则更新为tasks_completed
+                        if check_and_update_event_tasks_completion(event_id, round_id):
+                            logger.info(f"事件 {event_id} 轮次 {round_id} 状态已更新为 tasks_completed")
+                    
+                    # 有事件处理时，重置睡眠时间为初始值
+                    sleep_time = 5
                 else:
                     logger.debug("没有待更新状态的事件轮次，等待中...")
-                    time.sleep(20)
+                    
+                    # 没有事件时，逐渐增加睡眠时间，但不超过最大值
+                    sleep_time = min(sleep_time * 1.5, max_sleep_time)
+                
+                # 使用动态调整的睡眠时间
+                time.sleep(sleep_time)
             except Exception as e:
                 logger.error(f"处理事件轮次状态更新时出错: {str(e)}")
-                time.sleep(20)
+                time.sleep(5)  # 错误发生时使用较长的睡眠时间
 
-# 线程函数：处理事件总结生成
-def event_summary_worker(app):
-    """处理事件总结生成的工作线程"""
+# 线程函数：处理事件总结开始生成（任务完成 -> 待总结）
+def event_summarizing_worker(app):
+    """处理事件标记为待总结的工作线程
+    
+    该线程负责处理tasks_completed状态的事件，将状态更新为to_be_summarized，标记为待生成总结
+    """
     with app.app_context():
-        logger.info("启动事件总结生成线程")
+        logger.info("启动事件总结准备线程")
+        
+        # 初始睡眠时间和最大睡眠时间（秒）
+        sleep_time = 5
+        max_sleep_time = 10
+        
         while True:
             try:
+                # 刷新会话，确保获取最新数据
+                db.session.expire_all()
+                
                 # 获取待处理的事件
-                pending_events = get_events_for_summary()
+                pending_events = get_events_for_summarizing()
+                
+                if pending_events:
+                    logger.info(f"发现 {len(pending_events)} 个待标记为待总结的事件")
+                    
+                    # 处理每个事件
+                    for event in pending_events:
+                        # 更新事件状态为to_be_summarized
+                        event.status = 'to_be_summarized'
+                        db.session.commit()
+                        logger.info(f"事件 {event.event_id} 状态已更新为 to_be_summarized")
+                    
+                    # 有事件处理时，重置睡眠时间为初始值
+                    sleep_time = 5
+                else:
+                    logger.debug("没有待标记为待总结的事件，等待中...")
+                    
+                    # 没有事件时，逐渐增加睡眠时间，但不超过最大值
+                    sleep_time = min(sleep_time * 1.5, max_sleep_time)
+                
+                # 使用动态调整的睡眠时间
+                time.sleep(sleep_time)
+            except Exception as e:
+                logger.error(f"处理事件标记为待总结时出错: {str(e)}")
+                time.sleep(5)  # 错误发生时使用较长的睡眠时间
+
+# 线程函数：处理事件总结生成（待总结 -> 已总结 -> 轮次完成）
+def event_summary_worker(app):
+    """处理事件总结生成的工作线程
+    
+    该线程负责处理to_be_summarized状态的事件，生成总结，更新为summarized，然后是round_finished
+    """
+    with app.app_context():
+        logger.info("启动事件总结生成线程")
+        
+        # 初始睡眠时间和最大睡眠时间（秒）
+        sleep_time = 5
+        max_sleep_time = 10
+        
+        while True:
+            try:
+                # 刷新会话，确保获取最新数据
+                db.session.expire_all()
+                
+                # 获取待处理的事件
+                pending_events = get_events_to_be_summarized()
                 
                 if pending_events:
                     logger.info(f"发现 {len(pending_events)} 个待生成总结的事件")
                     
                     # 处理每个事件
                     for event in pending_events:
+                        # 生成总结，这会将状态更新为summarized
                         generate_event_summary(event.event_id)
                         
-                        # 如果事件状态为round_finished，且未达到最大轮次，可以自动推进到下一轮
-                        # 注意：这里可以根据实际需求决定是否自动推进，或者由外部触发
-                        if event.status == 'round_finished' and event.current_round <= config.EVENT_MAX_ROUND:
-                            advance_event_to_next_round(event.event_id)
+                        # 重新获取事件，因为状态已更新
+                        db.session.expire_all()  # 刷新会话，确保获取最新数据
+                        event = Event.query.filter_by(event_id=event.event_id).first()
+                        if not event:
+                            continue
+                        
+                        # 如果事件状态为summarized，更新为round_finished
+                        if event.status == 'summarized':
+                            # 不再增加轮次，轮次增加由advance_event_to_next_round函数负责
+                            event.status = 'round_finished'
+                            
+                            # 如果已经达到最大轮次，则标记为已完成
+                            if event.current_round >= config.EVENT_MAX_ROUND:
+                                event.status = 'completed'
+                                logger.info(f"事件已达到最大轮次，标记为已完成: {event.event_id}, 最终状态: {event.status}")
+                            
+                            db.session.commit()
+                            logger.info(f"事件 {event.event_id} 状态已更新为 {event.status}, 当前轮次: {event.current_round}")
+                    
+                    # 有事件处理时，重置睡眠时间为初始值
+                    sleep_time = 5
                 else:
                     logger.debug("没有待生成总结的事件，等待中...")
-                    time.sleep(30)
+                    
+                    # 没有事件时，逐渐增加睡眠时间，但不超过最大值
+                    sleep_time = min(sleep_time * 1.5, max_sleep_time)
+                
+                # 使用动态调整的睡眠时间
+                time.sleep(sleep_time)
             except Exception as e:
                 logger.error(f"处理事件总结生成时出错: {str(e)}")
-                time.sleep(30)
+                time.sleep(60)  # 错误发生时使用较长的睡眠时间
+
+# 线程函数：处理事件轮次推进（轮次完成 -> 待处理(下一轮)）
+def event_next_round_worker(app):
+    """处理事件轮次推进的工作线程
+    
+    该线程负责处理round_finished状态的事件，推进到下一轮
+    """
+    with app.app_context():
+        logger.info("启动事件轮次推进线程")
+        
+        # 初始睡眠时间和最大睡眠时间（秒）
+        sleep_time = 5  # 减小初始睡眠时间，确保更快地检测到round_finished事件
+        max_sleep_time = 10  # 减小最大睡眠时间
+        
+        while True:
+            try:
+                # 刷新会话，确保获取最新数据
+                db.session.expire_all()
+                
+                # 获取待处理的事件
+                pending_events = get_events_for_next_round()
+                
+                if pending_events:
+                    logger.info(f"【轮次推进】发现 {len(pending_events)} 个待推进到下一轮的事件")
+                    
+                    # 处理每个事件
+                    for event in pending_events:
+                        # 如果事件状态为round_finished，且未达到最大轮次，推进到下一轮
+                        if event.status == 'round_finished' and event.current_round <= config.EVENT_MAX_ROUND:
+                            logger.info(f"【轮次推进】准备推进事件 {event.event_id} 从轮次 {event.current_round} 到下一轮")
+                            result = advance_event_to_next_round(event.event_id)
+                            if result:
+                                logger.info(f"【轮次推进】事件 {event.event_id} 成功推进到下一轮")
+                            else:
+                                logger.warning(f"【轮次推进】事件 {event.event_id} 推进到下一轮失败")
+                    
+                    # 有事件处理时，重置睡眠时间为初始值
+                    sleep_time = 5
+                else:
+                    logger.debug("没有待推进到下一轮的事件，等待中...")
+                    
+                    # 没有事件时，逐渐增加睡眠时间，但不超过最大值
+                    sleep_time = min(sleep_time * 1.5, max_sleep_time)
+                
+                # 使用动态调整的睡眠时间
+                time.sleep(sleep_time)
+            except Exception as e:
+                logger.error(f"【轮次推进】处理事件轮次推进时出错: {str(e)}")
+                time.sleep(5)  # 错误发生时使用较长的睡眠时间
 
 def run_expert():
     """运行_expert服务"""
@@ -810,15 +1039,25 @@ def run_expert():
     t3.daemon = True
     threads.append(t3)
     
-    # 线程4：处理事件轮次状态更新
+    # 线程4：处理事件轮次状态更新（处理中 -> 任务完成）
     t4 = threading.Thread(target=event_round_status_worker, args=(app,))
     t4.daemon = True
     threads.append(t4)
     
-    # 线程5：处理事件总结生成
-    t5 = threading.Thread(target=event_summary_worker, args=(app,))
+    # 线程5：处理事件总结开始生成（任务完成 -> 待总结）
+    t5 = threading.Thread(target=event_summarizing_worker, args=(app,))
     t5.daemon = True
     threads.append(t5)
+    
+    # 线程6：处理事件总结生成（待总结 -> 已总结 -> 轮次完成）
+    t6 = threading.Thread(target=event_summary_worker, args=(app,))
+    t6.daemon = True
+    threads.append(t6)
+    
+    # 线程7：处理事件轮次推进（轮次完成 -> 待处理(下一轮)）
+    t7 = threading.Thread(target=event_next_round_worker, args=(app,))
+    t7.daemon = True
+    threads.append(t7)
     
     # 启动所有线程
     for t in threads:
@@ -837,6 +1076,9 @@ def advance_event_to_next_round(event_id):
     Returns:
         bool: 是否成功推进到下一轮
     """
+    # 刷新会话，确保获取最新数据
+    db.session.expire_all()
+    
     # 获取事件
     event = Event.query.filter_by(event_id=event_id).first()
     if not event:
@@ -900,6 +1142,35 @@ def resolve_event(event_id, resolution_note=None):
     logger.info(f"事件已人工解决: {event_id}")
     
     # 生成最终的事件总结
+    # 首先更新事件状态为to_be_summarized
+    event.status = 'to_be_summarized'
+    db.session.commit()
+    
+    # 生成总结
     generate_event_summary(event_id)
     
-    return True 
+    return True
+
+def debug_event_status(event_id):
+    """输出事件状态，用于调试
+    
+    Args:
+        event_id: 事件ID
+    """
+    # 刷新会话，确保获取最新数据
+    db.session.expire_all()
+    
+    event = Event.query.filter_by(event_id=event_id).first()
+    if not event:
+        logger.warning(f"事件不存在: {event_id}")
+        return
+    
+    logger.info(f"【事件诊断】事件ID: {event_id}, 状态: {event.status}, 轮次: {event.current_round}")
+    
+    # 查询事件的所有任务
+    tasks = Task.query.filter_by(event_id=event_id).all()
+    logger.info(f"【事件诊断】事件 {event_id} 有 {len(tasks)} 个任务")
+    
+    # 查询事件的所有摘要
+    summaries = Summary.query.filter_by(event_id=event_id).all()
+    logger.info(f"【事件诊断】事件 {event_id} 有 {len(summaries)} 个摘要") 
