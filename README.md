@@ -23,7 +23,9 @@
 
 DeepSOC 是一个革命性的安全运营解决方案，它将先进的 AI 技术与传统的安全运营工具完美结合，通过多智能体（Multi-Agent）架构，DeepSOC 能够自动化处理安全事件，显著提升安全运营效率。
 
-注意，体验产品最新功能，请访问项目DEV分支。[DeepSOC DEV分支](https://github.com/flagify-com/deepsoc/tree/dev)
+<h2>注意，体验产品最新功能，请访问项目DEV分支。</h2>
+
+[DeepSOC DEV分支](https://github.com/flagify-com/deepsoc/tree/dev)
 
 
 DeepSOC产品工作逻辑图
