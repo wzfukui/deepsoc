@@ -78,6 +78,7 @@
 
 ### 移除 (本次消息机制重大更新)
 - Agent 服务 (`captain`, `manager`, `operator`, `executor`, `expert`) 中对 `app.controllers.socket_controller.broadcast_message` 的直接调用及相关导入。
+- 作战室用户发送的消息不再自动转发给指挥官进行大模型请求，仅在房间内广播。
 
 ### 修复
 - 前端无法正确显示事件状态，因 `Event.to_dict()` 返回的字段名与前端期望不一致，现统一为 `event_status`，并保留 `status` 兼容旧代码。

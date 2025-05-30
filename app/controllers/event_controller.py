@@ -166,7 +166,7 @@ def get_event_summaries(event_id):
 def send_message(event_id):
     """发送消息到事件"""
     from app.models import Message
-    from app.controllers.socket_controller import broadcast_message, trigger_ai_response
+    from app.controllers.socket_controller import broadcast_message
     
     data = request.json
     
@@ -203,8 +203,7 @@ def send_message(event_id):
     # 广播消息
     broadcast_message(message)
     
-    # 触发AI响应
-    trigger_ai_response(event_id, message)
+
     
     return jsonify({
         'status': 'success',
