@@ -11,6 +11,7 @@ class User(db.Model):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.String(64), default=lambda: str(uuid.uuid4()), unique=True, nullable=False)
     username = db.Column(db.String(64), nullable=False, unique=True)
     nickname = db.Column(db.String(64))
     email = db.Column(db.String(120), nullable=False, unique=True)
@@ -31,6 +32,7 @@ class User(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
+            'user_id': self.user_id,
             'username': self.username,
             'nickname': self.nickname,
             'email': self.email,
@@ -218,6 +220,7 @@ class Message(db.Model):
     id = Column(Integer, primary_key=True, autoincrement=True)
     message_id = Column(String(64), default=lambda: str(uuid.uuid4()), unique=True, nullable=False)
     event_id = Column(String(64))  # 关联的事件ID
+    user_id = Column(String(64))
     message_from = Column(String(64))
     round_id = db.Column(db.Integer)
     message_content = Column(JSON)
@@ -230,6 +233,7 @@ class Message(db.Model):
             'id': self.id,
             'message_id': self.message_id,
             'event_id': self.event_id,
+            'user_id': self.user_id,
             'message_from': self.message_from,
             'round_id': self.round_id,
             'message_content': self.message_content,

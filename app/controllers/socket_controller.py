@@ -119,6 +119,7 @@ def register_socket_events(socketio):
             event_id = data.get('event_id')
             message_content = data.get('message')
             sender = data.get('sender', 'user')
+            temp_id = data.get('temp_id')
             
             if not event_id or not message_content:
                 emit('error', {'message': '缺少必要参数'})
@@ -131,9 +132,29 @@ def register_socket_events(socketio):
                 return
             
             # 创建消息
+            user_id = None
+            user_nickname = None
+            try:
+                from flask_jwt_extended import decode_token
+                token = request.cookies.get('access_token') or request.headers.get('Authorization', '')
+                if token and token.startswith('Bearer '):
+                    token = token.split(' ', 1)[1]
+                if token:
+                    decoded = decode_token(token)
+                    username = decoded.get('sub')
+                    if username:
+                        from app.models.models import User
+                        user = User.query.filter_by(username=username).first()
+                        if user:
+                            user_id = user.user_id
+                            user_nickname = user.nickname
+            except Exception as auth_error:
+                logger.warning(f"解析用户身份失败: {auth_error}")
+
             message = Message(
                 message_id=str(uuid.uuid4()),
                 event_id=event_id,
+                user_id=user_id,
                 message_from=sender,
                 message_type='user_message',
                 message_content=message_content
@@ -143,11 +164,13 @@ def register_socket_events(socketio):
             db.session.add(message)
             db.session.commit()
             
-            # 广播消息
-            emit('new_message', message.to_dict(), room=event_id)
-            
-            # 触发AI响应
-            trigger_ai_response(event_id, message)
+            # 广播消息，并带上临时ID以便前端替换
+            msg_dict = message.to_dict()
+            if temp_id:
+                msg_dict['temp_id'] = temp_id
+            if user_nickname:
+                msg_dict['user_nickname'] = user_nickname
+            emit('new_message', msg_dict, room=event_id)
         except Exception as e:
             logger.error(f"处理消息时出错: {str(e)}")
             logger.error(traceback.format_exc())
@@ -193,7 +216,7 @@ def register_socket_events(socketio):
             logger.error(traceback.format_exc())
             emit('error', {'message': f'处理测试连接请求时出错: {str(e)}'})
 
-def broadcast_message(message):
+def broadcast_message(message, extra_data=None):
     """广播消息到特定作战室
     
     Args:
@@ -205,6 +228,8 @@ def broadcast_message(message):
         # 通过WebSocket推送消息
         event_id = message.event_id
         message_dict = message.to_dict()
+        if extra_data:
+            message_dict.update(extra_data)
         
         # 保存到数据库（如果尚未保存）
         if message.id is None:

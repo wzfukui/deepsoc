@@ -18,6 +18,10 @@
 - 新增 `prompts` 数据表，用于存储所有提示词和背景信息，前端可在线修改
 - 初始化脚本现会自动导入内置的提示词，并移除相应 Markdown 模板文件
 - 初始化脚本支持从 `initial_data.sql` 导入示例数据，安装后即可体验
+- 用户表和消息表新增 `user_id`(UUID) 字段，用于标识消息发送者
+- 作战室消息列表显示发送者昵称，并在服务端确认后替换临时消息
+- 作战室支持用户发送文本消息，并通过 WebSocket 广播给其他在线用户，用户消息在界面右侧以蓝色高亮显示
+- 发送消息现在通过 WebSocket 完成，前端在本地立即展示待确认的消息，收到服务端推送后自动替换
 - **Agent 服务消息发布集成**: 
     - `captain_service.py`、`manager_service.py`、`operator_service.py`、`executor_service.py`、`expert_service.py`（包括其多线程worker）均已集成 `RabbitMQPublisher`，在生成业务消息（如LLM请求/响应、任务/动作/命令创建、执行结果、摘要生成、事件状态变更等）后，将消息发布到 RabbitMQ。
 - **主 Web 服务消息消费与 WebSocket 推送**: 
@@ -64,6 +68,7 @@
 - 修复了`task_status_worker`中调用已删除函数的问题，将`check_event_round_completion`替换为新的`check_and_update_event_tasks_completion`函数
 - 修复了多线程并发导致的数据库会话状态不一致问题，通过添加`db.session.expire_all()`确保每次查询都获取最新数据
 - 修复允许修改初始管理员账号角色的漏洞，禁止更改`ADMIN_USERNAME`指定账户的角色
+- 修复事件消息接口导入 `User` 模型失败的问题，确保正确返回发送者昵称
 
 ### 变更 (本次消息机制重大更新)
 - **消息传递流程重构**: 
@@ -77,6 +82,7 @@
 
 ### 移除 (本次消息机制重大更新)
 - Agent 服务 (`captain`, `manager`, `operator`, `executor`, `expert`) 中对 `app.controllers.socket_controller.broadcast_message` 的直接调用及相关导入。
+- 作战室用户发送的消息不再自动转发给指挥官进行大模型请求，仅在房间内广播。
 
 ### 修复
 - 前端无法正确显示事件状态，因 `Event.to_dict()` 返回的字段名与前端期望不一致，现统一为 `event_status`，并保留 `status` 兼容旧代码。

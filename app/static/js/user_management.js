@@ -58,7 +58,9 @@ function updateUserInfo() {
     const userInfoElement = document.getElementById('user-info');
     if (userInfoElement) {
         const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
-        if (userInfo.username) userInfoElement.textContent = userInfo.username;
+        if (userInfo.nickname || userInfo.username) {
+            userInfoElement.textContent = userInfo.nickname || userInfo.username;
+        }
     }
 }
 

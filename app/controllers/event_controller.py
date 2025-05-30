@@ -86,7 +86,7 @@ def get_event(event_id):
 @jwt_required()
 def get_event_messages(event_id):
     """获取事件相关的所有消息"""
-    from app.models import Message
+    from app.models import Message, User
     
     # 获取 last_message_db_id 参数，用于增量获取消息
     last_message_db_id = request.args.get('last_message_db_id', 0, type=int)
@@ -107,10 +107,19 @@ def get_event_messages(event_id):
     
     # 获取消息并按数据库ID升序排序
     messages = query.order_by(Message.id.asc()).all()
-    
+
+    result = []
+    for message in messages:
+        msg_dict = message.to_dict()
+        if message.user_id:
+            user = User.query.filter_by(user_id=message.user_id).first()
+            if user and user.nickname:
+                msg_dict['user_nickname'] = user.nickname
+        result.append(msg_dict)
+
     return jsonify({
         'status': 'success',
-        'data': [message.to_dict() for message in messages]
+        'data': result
     })
 
 @event_bp.route('/<event_id>/tasks', methods=['GET'])
@@ -166,7 +175,7 @@ def get_event_summaries(event_id):
 def send_message(event_id):
     """发送消息到事件"""
     from app.models import Message
-    from app.controllers.socket_controller import broadcast_message, trigger_ai_response
+    from app.controllers.socket_controller import broadcast_message
     
     data = request.json
     
@@ -185,20 +194,28 @@ def send_message(event_id):
             'message': '事件不存在'
         }), 404
     
-    # 创建消息
+    # 创建消息，支持扩展不同类型的内容
+    content_type = data.get('content_type', 'text')
+    message_content = {
+        'type': content_type,
+        'text': data.get('message')
+    }
+
+    temp_id = data.get('temp_id')
+
     message = Message(
         message_id=str(uuid.uuid4()),
         event_id=event_id,
         message_from=data.get('sender', 'user'),
         message_type='user_message',
-        message_content=data.get('message')
+        message_content=message_content
     )
     
     # 广播消息
-    broadcast_message(message)
+    extra = {'temp_id': temp_id} if temp_id else None
+    broadcast_message(message, extra)
     
-    # 触发AI响应
-    trigger_ai_response(event_id, message)
+
     
     return jsonify({
         'status': 'success',
