@@ -192,6 +192,8 @@ def send_message(event_id):
         'text': data.get('message')
     }
 
+    temp_id = data.get('temp_id')
+
     message = Message(
         message_id=str(uuid.uuid4()),
         event_id=event_id,
@@ -201,7 +203,8 @@ def send_message(event_id):
     )
     
     # 广播消息
-    broadcast_message(message)
+    extra = {'temp_id': temp_id} if temp_id else None
+    broadcast_message(message, extra)
     
 
     

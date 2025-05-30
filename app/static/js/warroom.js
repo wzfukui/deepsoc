@@ -819,24 +819,36 @@ function updateEventStats(stats) {
 
 // 添加消息
 function addMessage(message) {
-    // 检查1: 验证消息和其数据库 ID
-    if (!message || typeof message.id === 'undefined') {
-        console.error('[addMessage] 消息对象无效或缺少数据库ID:', message);
-        return false; // 表示消息未添加
+    if (!message) {
+        console.error('[addMessage] 消息对象无效:', message);
+        return false;
     }
 
-    // 检查2: 使用数据库ID的Set进行去重
-    if (displayedMessages.has(message.id)) {
-        console.log(`%c[addMessage] 忽略重复消息 ID: ${message.id}`, 'color: #FFA500;');
-        return false; // 表示消息是重复的，未添加
+    const uniqueKey = message.temp_id ? `tmp_${message.temp_id}` : `id_${message.id}`;
+
+    // 如果存在同temp_id的待确认消息，先移除
+    if (message.temp_id) {
+        const pendingEl = document.getElementById(`msg-${message.temp_id}`);
+        if (pendingEl) {
+            pendingEl.remove();
+            displayedMessages.delete(`tmp_${message.temp_id}`);
+            const idx = messagesData.findIndex(m => m.temp_id === message.temp_id);
+            if (idx !== -1) messagesData.splice(idx, 1);
+        }
     }
 
-    console.log(`%c[addMessage] 添加新消息 ID:${message.id}, 类型:${message.message_type}, 来源:${message.message_from}`, 'color: #4CAF50;');
+    if (displayedMessages.has(uniqueKey)) {
+        console.log(`%c[addMessage] 忽略重复消息 ${uniqueKey}`, 'color: #FFA500;');
+        return false;
+    }
 
-    // 1. 更新内部追踪结构
-    displayedMessages.add(message.id);
+    console.log(`%c[addMessage] 添加新消息 ${uniqueKey}, 类型:${message.message_type}, 来源:${message.message_from}`, 'color: #4CAF50;');
+
+    displayedMessages.add(uniqueKey);
     messagesData.push(message);
-    messagesMap.set(message.message_id, message); // 使用业务 message_id 作为 key
+    if (message.message_id) {
+        messagesMap.set(message.message_id, message);
+    }
 
     // 2. 更新 lastMessageId (虽然其直接用途可能需要重新评估，但为保持一致性暂时保留)
     // lastMessageId = Math.max(lastMessageId, message.id);
@@ -864,6 +876,9 @@ function addMessage(message) {
         }
     } else {
         messageClass += ' message-user';
+    }
+    if (message.pending) {
+        messageClass += ' message-pending';
     }
     messageElement.className = messageClass;
     
@@ -1048,6 +1063,7 @@ function addMessage(message) {
 
     messageContent += '</div>';
     messageElement.innerHTML = messageContent;
+    messageElement.id = `msg-${message.temp_id || message.message_id || message.id}`;
     elements.chatMessages.appendChild(messageElement);
 
     return true; // 表示消息已成功添加并渲染
@@ -1072,51 +1088,45 @@ function toggleCollapsible(id) {
 async function sendMessage() {
     // 使用统一的输入框，预留扩展空间
     const messageInput = elements.userInput;
-    const message = messageInput.value.trim();
-    
-    if (!message) return;
-    
-    try {
-        // 禁用发送按钮
-        const sendButton = elements.sendButton;
-        sendButton.disabled = true;
-        
-        const response = await fetch(`/api/event/send_message/${eventId}`, {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify({
-                message: message,
-                sender: 'user',
-                content_type: 'text' // 未来可扩展为 voice、image、file 等
-            }),
-            credentials: 'include'
-        });
-        
-        if (response.status === 401) {
-            showToast('登录已过期，请重新登录', 'error');
-            setTimeout(() => {
-                window.location.href = '/login';
-            }, 1500);
-            return;
-        }
-        
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            // 清空输入框
-            messageInput.value = '';
-            messageInput.focus();
-        } else {
-            showToast('发送失败: ' + (data.message || '未知错误'), 'error');
-        }
-    } catch (error) {
-        console.error('发送消息错误:', error);
-        showToast('网络错误，请稍后重试', 'error');
-    } finally {
-        // 启用发送按钮
-        const sendButton = elements.sendButton;
-        sendButton.disabled = false;
+    const text = messageInput.value.trim();
+
+    if (!text) return;
+
+    if (!socket.connected) {
+        showToast('WebSocket未连接，无法发送消息', 'error');
+        return;
     }
+
+    // 生成临时ID用于本地展示和与服务器回应匹配
+    const tempId = `tmp_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+    // 构造待显示的本地消息对象
+    const pendingMessage = {
+        temp_id: tempId,
+        message_id: tempId,
+        event_id: eventId,
+        message_from: 'user',
+        message_type: 'user_message',
+        message_content: { type: 'text', text: text },
+        created_at: new Date().toISOString(),
+        pending: true
+    };
+
+    // 在界面上立即显示待确认的消息
+    addMessage(pendingMessage);
+    scrollToBottom();
+
+    // 通过WebSocket发送到服务器
+    socket.emit('message', {
+        event_id: eventId,
+        message: pendingMessage.message_content,
+        sender: 'user',
+        temp_id: tempId
+    });
+
+    // 清空输入框并重新聚焦
+    messageInput.value = '';
+    messageInput.focus();
 }
 
 // 获取当前驾驶模式

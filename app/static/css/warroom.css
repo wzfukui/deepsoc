@@ -243,6 +243,12 @@ h1, h2, h3, h4, h5, h6, .cyber-btn, .section-title, .status-label {
     margin-left: auto;
 }
 
+/* 待确认的本地消息样式 */
+.message-pending {
+    opacity: 0.6;
+    font-style: italic;
+}
+
 .message-user .message-sender {
     color: var(--info-color);
 }
