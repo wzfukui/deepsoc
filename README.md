@@ -96,11 +96,12 @@ pip install -r requirements.txt
 > MySQL连接密码中的特殊字符串需要通过URL编码替代
 ```sql
 CREATE DATABASE IF NOT EXISTS deepsoc DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS 'deepsoc_user'@'localhost' IDENTIFIED BY 'DeepSOC2025@flagify.com'; 
-GRANT ALL PRIVILEGES ON deepsoc.* TO 'deepsoc_user'@'localhost'; 
+CREATE USER IF NOT EXISTS 'deepsoc_user'@'localhost' IDENTIFIED BY 'deepsoc_password';
+GRANT ALL PRIVILEGES ON deepsoc.* TO 'deepsoc_user'@'localhost';
 FLUSH PRIVILEGES;
--- DATABASE_URL="mysql+pymysql://deepsoc_user:DeepSOC2025%40flagify.com@localhost:3306/deepsoc"
+-- DATABASE_URL="mysql+pymysql://deepsoc_user:deepsoc_password@localhost:3306/deepsoc"
 ```
+如遇 Alembic 迁移失败，可手动执行 `add_user_uuid.sql` 更新表结构。
 
 2.3 RabbitMQ 准备
 

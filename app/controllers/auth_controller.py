@@ -50,7 +50,10 @@ def login():
             'message': '登录成功',
             'access_token': access_token,
             'user': {
+                'user_id': user.user_id,
+                'id': user.id,
                 'username': user.username,
+                'nickname': user.nickname,
                 'email': user.email,
                 'role': user.role
             }
@@ -91,7 +94,10 @@ def get_current_user():
         return jsonify({
             'status': 'success',
             'user': {
+                'user_id': user.user_id,
+                'id': user.id,
                 'username': user.username,
+                'nickname': user.nickname,
                 'email': user.email,
                 'role': user.role,
                 'last_login_at': user.last_login_at.isoformat() if user.last_login_at else None
@@ -227,6 +233,7 @@ def create_user():
             'status': 'success',
             'message': '用户账户创建成功',
             'user': {
+                'user_id': new_user.user_id,
                 'username': new_user.username,
                 'nickname': new_user.nickname,
                 'email': new_user.email,
