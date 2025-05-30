@@ -132,9 +132,29 @@ def register_socket_events(socketio):
                 return
             
             # 创建消息
+            user_id = None
+            user_nickname = None
+            try:
+                from flask_jwt_extended import decode_token
+                token = request.cookies.get('access_token') or request.headers.get('Authorization', '')
+                if token and token.startswith('Bearer '):
+                    token = token.split(' ', 1)[1]
+                if token:
+                    decoded = decode_token(token)
+                    username = decoded.get('sub')
+                    if username:
+                        from app.models.models import User
+                        user = User.query.filter_by(username=username).first()
+                        if user:
+                            user_id = user.id
+                            user_nickname = user.nickname
+            except Exception as auth_error:
+                logger.warning(f"解析用户身份失败: {auth_error}")
+
             message = Message(
                 message_id=str(uuid.uuid4()),
                 event_id=event_id,
+                user_id=user_id,
                 message_from=sender,
                 message_type='user_message',
                 message_content=message_content
@@ -148,10 +168,9 @@ def register_socket_events(socketio):
             msg_dict = message.to_dict()
             if temp_id:
                 msg_dict['temp_id'] = temp_id
+            if user_nickname:
+                msg_dict['user_nickname'] = user_nickname
             emit('new_message', msg_dict, room=event_id)
-            
-            # 触发AI响应
-            trigger_ai_response(event_id, message)
         except Exception as e:
             logger.error(f"处理消息时出错: {str(e)}")
             logger.error(traceback.format_exc())

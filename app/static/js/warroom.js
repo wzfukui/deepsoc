@@ -885,7 +885,7 @@ function addMessage(message) {
     let messageContent = '';
     messageContent += `
         <div class="message-header">
-            <span class="message-sender">${getRoleName(message.message_from)}</span>
+            <span class="message-sender">${getSenderName(message)}</span>
             <div class="message-time-container">
                 <span class="message-source-btn" onclick="showMessageSourceModal('${message.message_id}')">
                     <i class="fas fa-code" title="查看源码"></i>
@@ -1109,7 +1109,15 @@ async function sendMessage() {
         message_type: 'user_message',
         message_content: { type: 'text', text: text },
         created_at: new Date().toISOString(),
-        pending: true
+        pending: true,
+        user_nickname: (() => {
+            try {
+                const info = JSON.parse(localStorage.getItem('user_info') || '{}');
+                return info.nickname || info.username || '用户';
+            } catch (e) {
+                return '用户';
+            }
+        })()
     };
 
     // 在界面上立即显示待确认的消息
@@ -1659,6 +1667,21 @@ function getRoleName(role) {
     };
     
     return roleMap[role] || role;
+}
+
+function getSenderName(message) {
+    if (message.message_from === 'user') {
+        if (message.user_nickname) {
+            return message.user_nickname;
+        }
+        try {
+            const info = JSON.parse(localStorage.getItem('user_info') || '{}');
+            return info.nickname || info.username || '用户';
+        } catch (e) {
+            return '用户';
+        }
+    }
+    return getRoleName(message.message_from);
 }
 
 function getTaskTypeText(type) {

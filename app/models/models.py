@@ -218,6 +218,7 @@ class Message(db.Model):
     id = Column(Integer, primary_key=True, autoincrement=True)
     message_id = Column(String(64), default=lambda: str(uuid.uuid4()), unique=True, nullable=False)
     event_id = Column(String(64))  # 关联的事件ID
+    user_id = Column(Integer)
     message_from = Column(String(64))
     round_id = db.Column(db.Integer)
     message_content = Column(JSON)
@@ -230,6 +231,7 @@ class Message(db.Model):
             'id': self.id,
             'message_id': self.message_id,
             'event_id': self.event_id,
+            'user_id': self.user_id,
             'message_from': self.message_from,
             'round_id': self.round_id,
             'message_content': self.message_content,
