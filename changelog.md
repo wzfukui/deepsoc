@@ -19,6 +19,7 @@
 - 初始化脚本现会自动导入内置的提示词，并移除相应 Markdown 模板文件
 - 初始化脚本支持从 `initial_data.sql` 导入示例数据，安装后即可体验
 - 作战室支持用户发送文本消息，并通过 WebSocket 广播给其他在线用户，用户消息在界面右侧以蓝色高亮显示
+- 发送消息现在通过 WebSocket 完成，前端在本地立即展示待确认的消息，收到服务端推送后自动替换
 - **Agent 服务消息发布集成**: 
     - `captain_service.py`、`manager_service.py`、`operator_service.py`、`executor_service.py`、`expert_service.py`（包括其多线程worker）均已集成 `RabbitMQPublisher`，在生成业务消息（如LLM请求/响应、任务/动作/命令创建、执行结果、摘要生成、事件状态变更等）后，将消息发布到 RabbitMQ。
 - **主 Web 服务消息消费与 WebSocket 推送**: 

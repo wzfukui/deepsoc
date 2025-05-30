@@ -119,6 +119,7 @@ def register_socket_events(socketio):
             event_id = data.get('event_id')
             message_content = data.get('message')
             sender = data.get('sender', 'user')
+            temp_id = data.get('temp_id')
             
             if not event_id or not message_content:
                 emit('error', {'message': '缺少必要参数'})
@@ -143,8 +144,11 @@ def register_socket_events(socketio):
             db.session.add(message)
             db.session.commit()
             
-            # 广播消息
-            emit('new_message', message.to_dict(), room=event_id)
+            # 广播消息，并带上临时ID以便前端替换
+            msg_dict = message.to_dict()
+            if temp_id:
+                msg_dict['temp_id'] = temp_id
+            emit('new_message', msg_dict, room=event_id)
             
             # 触发AI响应
             trigger_ai_response(event_id, message)
@@ -193,7 +197,7 @@ def register_socket_events(socketio):
             logger.error(traceback.format_exc())
             emit('error', {'message': f'处理测试连接请求时出错: {str(e)}'})
 
-def broadcast_message(message):
+def broadcast_message(message, extra_data=None):
     """广播消息到特定作战室
     
     Args:
@@ -205,6 +209,8 @@ def broadcast_message(message):
         # 通过WebSocket推送消息
         event_id = message.event_id
         message_dict = message.to_dict()
+        if extra_data:
+            message_dict.update(extra_data)
         
         # 保存到数据库（如果尚未保存）
         if message.id is None:
