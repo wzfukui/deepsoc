@@ -14,10 +14,16 @@ branch_labels = None
 depends_on = None
 
 def upgrade():
+    with op.batch_alter_table('users', schema=None) as batch_op:
+        batch_op.add_column(sa.Column('user_id', sa.String(length=64), nullable=True))
+
     with op.batch_alter_table('messages', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('user_id', sa.Integer(), nullable=True))
+        batch_op.add_column(sa.Column('user_id', sa.String(length=64), nullable=True))
 
 
 def downgrade():
     with op.batch_alter_table('messages', schema=None) as batch_op:
         batch_op.drop_column('user_id')
+    with op.batch_alter_table('users', schema=None) as batch_op:
+        batch_op.drop_column('user_id')
+

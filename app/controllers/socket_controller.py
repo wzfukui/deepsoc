@@ -146,7 +146,7 @@ def register_socket_events(socketio):
                         from app.models.models import User
                         user = User.query.filter_by(username=username).first()
                         if user:
-                            user_id = user.id
+                            user_id = user.user_id
                             user_nickname = user.nickname
             except Exception as auth_error:
                 logger.warning(f"解析用户身份失败: {auth_error}")
