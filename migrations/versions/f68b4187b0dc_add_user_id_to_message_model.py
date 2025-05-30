@@ -24,6 +24,6 @@ def upgrade():
 def downgrade():
     with op.batch_alter_table('messages', schema=None) as batch_op:
         batch_op.drop_column('user_id')
-
     with op.batch_alter_table('users', schema=None) as batch_op:
         batch_op.drop_column('user_id')
+
