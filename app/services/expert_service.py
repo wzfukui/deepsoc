@@ -974,22 +974,54 @@ def generate_event_summary(event_id: str, publisher: RabbitMQPublisher):
         }
         json_ctx = json.dumps(ctx, ensure_ascii=False, indent=2)
 
-        system_prompt = """你是经验丰富的安全专家，请根据给定 JSON 信息生成仅包含客观事实的事件战况概述。"""
-        user_prompt = f"""```json\n{json_ctx}\n```\n请生成事件战况概述。"""
+        # 使用长文本模型，并启用 json_mode
+        # Prompt 要求返回 summary, suggestion 的 JSON 结构
+        prompt_service = PromptService('_expert')
+        system_prompt = prompt_service.get_system_prompt()
+        user_prompt = f"""
+        请根据以下事件战况信息，生成总结和建议。
+        
+        事件详情 (JSON):
+        ```json
+        {json_ctx}
+        ```
+        """
 
-        # 通知前端开始 LLM
-        start_msg = create_standard_message(event_id=event_id, message_from='system', round_id=event.current_round, message_type='expert_llm_request_event_summary', content_data={"text": f"_expert 正在为事件 {event_id} 生成总结"})
-        if start_msg and publisher:
-            try:
-                rk = f"notifications.frontend.{event_id}.system.{start_msg.message_type}"
-                publisher.publish_message(message_body=start_msg.to_dict(), routing_key=rk)
-            except Exception as mq_err:
-                logger.error(f"generate_event_summary: 发布开始消息失败: {mq_err}")
+        response_content = call_llm(system_prompt, user_prompt, temperature=0.3, long_text=True, json_mode=True)
+        
+        # 尝试解析 JSON
+        try:
+            parsed_res = json.loads(response_content)
+            # 兼容处理：如果是 list，可能只是 summaries
+            if isinstance(parsed_res, dict):
+                # 假设 structure: {"summaries": [...], "suggestions": [...]}
+                summary_list = parsed_res.get('summaries', [])
+                suggestion_list = parsed_res.get('suggestions', [])
+                
+                # 如果是字符串，包装成 list
+                if isinstance(summary_list, str): summary_list = [summary_list]
+                if isinstance(suggestion_list, str): suggestion_list = [suggestion_list]
+                
+                summary_text = "\n".join(summary_list)
+                suggestion_text = "\n".join(suggestion_list)
+            else:
+                # Fallback
+                summary_text = str(parsed_res)
+                suggestion_text = ""
+        except:
+            logger.warning("Expert Summary JSON 解析失败，使用原始文本")
+            summary_text = response_content
+            suggestion_text = ""
 
-        summary_text = call_llm(system_prompt, user_prompt, temperature=0.3, long_text=True).strip()
-        logger.info(f"generate_event_summary: LLM 返回完成。长度 {len(summary_text)} 字")
+        logger.info(f"generate_event_summary: LLM 返回完成。Summary长度 {len(summary_text)} 字")
 
-        summary_obj = Summary(summary_id=str(uuid.uuid4()), event_id=event_id, round_id=event.current_round, event_summary=summary_text, event_suggestion="")
+        summary_obj = Summary(
+            summary_id=str(uuid.uuid4()), 
+            event_id=event_id, 
+            round_id=event.current_round, 
+            event_summary=summary_text, 
+            event_suggestion=suggestion_text
+        )
         db.session.add(summary_obj)
 
         # 更新事件状态
