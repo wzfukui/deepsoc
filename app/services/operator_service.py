@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import func
 from app.models import db, Event, Task, Action, Command, Message, MCPServer, MCPTool
 from app.services.llm_service import call_llm
-from app.mcp import MCPManager
+from app.mcp.client_manager import mcp_manager
 from app.utils.message_utils import create_standard_message
 from app.utils.mq_utils import RabbitMQPublisher
 import pika
@@ -36,7 +36,9 @@ def process_action_group(event_id, round_id, actions, publisher: RabbitMQPublish
 
     # 1. 加载工具定义
     # Operator 需要完整的 Schema 来生成正确的工具调用
-    tools = MCPManager.get_all_tool_definitions()
+    # 使用新的 Client Manager 获取工具定义
+    from app.mcp.client_manager import mcp_manager
+    tools = mcp_manager.get_all_tools_definitions()
 
     # 2. 逐个处理 Action
     # 因为 LLM Function Calling 一次处理一个 Context 更准确，这里我们不再批量生成，而是逐个 Action 询问

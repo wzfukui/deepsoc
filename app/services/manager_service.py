@@ -65,7 +65,9 @@ def process_task_group(event_id, round_id, tasks, publisher: RabbitMQPublisher):
         'event_message': event.message,
         'tasks': tasks_data
     }
-    yaml_data = yaml.dump(request_data, allow_unicode=True, default_flow_style=False)
+    
+    # 将数据转换为JSON字符串而不是YAML
+    json_data = json.dumps(request_data, ensure_ascii=False, indent=2)
 
     # 2. 构建 Prompt
     prompt_service = PromptService('_manager')
@@ -79,9 +81,9 @@ def process_task_group(event_id, round_id, tasks, publisher: RabbitMQPublisher):
     
     如果任务需要调用工具，请生成 action_type='tool_use' 的行动，并在 action_name 中简要描述意图。
     
-    任务列表 (YAML):
-    ```yaml
-    {yaml_data}
+    任务列表 (JSON):
+    ```json
+    {json_data}
     ```
     """
 
@@ -90,9 +92,28 @@ def process_task_group(event_id, round_id, tasks, publisher: RabbitMQPublisher):
                     {"text": f"正在拆解 {len(tasks)} 个任务为具体行动..."})
     
     try:
-        response = call_llm(system_prompt, user_prompt)
+        # Manager 需要强制使用 json_mode
+        response = call_llm(system_prompt, user_prompt, json_mode=True)
         
-        parsed_response = parse_yaml_response(response)
+        # 3. 解析响应 (JSON)
+        try:
+            parsed_response = json.loads(response)
+        except json.JSONDecodeError:
+             # 如果直接解析失败，尝试提取代码块中的 JSON
+            try:
+                if '```json' in response:
+                    json_str = response.split('```json')[1].split('```')[0].strip()
+                    parsed_response = json.loads(json_str)
+                elif '```' in response:
+                    json_str = response.split('```')[1].strip()
+                    parsed_response = json.loads(json_str)
+                else:
+                    logger.error(f"Manager 响应无法解析为JSON: {response}")
+                    return
+            except Exception as e:
+                logger.error(f"Manager JSON提取解析失败: {e}")
+                return
+
         if not parsed_response:
             logger.error("Manager 解析 LLM 响应失败")
             return

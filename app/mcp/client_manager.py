@@ -1,150 +1,204 @@
-import asyncio
-import logging
 import json
-from datetime import datetime
-from urllib.parse import urlparse
-
-from app.models import db, MCPServer, MCPTool
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.sse import sse_client
-# from mcp.client.stdio import stdio_client # 暂时只支持 SSE/HTTP
+import logging
+import threading
+import time
+import requests
+import sseclient
+from urllib.parse import urljoin
+from app.models.models import db, MCPServer, MCPTool
+from app.services.llm_service import call_llm
 
 logger = logging.getLogger(__name__)
 
-class MCPManager:
-    """MCP Server 管理器，负责连接、同步工具和执行工具"""
+class MCPClient:
+    def __init__(self, server_model: MCPServer):
+        self.server_key = server_model.server_key
+        self.base_url = server_model.base_url
+        self.auth_token = server_model.auth_token
+        self.transport_type = server_model.transport_type
+        self.post_endpoint = None
+        self.session_id = None
+        self.is_connected = False
+        
+    def connect(self):
+        """
+        Connects to the MCP server.
+        For SSE, this means establishing the SSE connection to get the POST endpoint.
+        """
+        if self.transport_type == 'sse':
+            try:
+                headers = {'Accept': 'text/event-stream'}
+                if self.auth_token:
+                    headers['Authorization'] = f"Bearer {self.auth_token}"
+                
+                # We need to stream the response
+                response = requests.get(self.base_url, stream=True, headers=headers, timeout=10)
+                client = sseclient.SSEClient(response)
+                
+                # Wait for the 'endpoint' event
+                for event in client.events():
+                    if event.event == 'endpoint':
+                        self.post_endpoint = urljoin(self.base_url, event.data)
+                        self.is_connected = True
+                        logger.info(f"MCP Client {self.server_key} connected. Endpoint: {self.post_endpoint}")
+                        # In a real implementation, we might need to keep this thread alive 
+                        # to receive other events, but for now we just want the endpoint.
+                        # Some servers might require the connection to stay open.
+                        # For this POC, we'll break after getting the endpoint.
+                        break
+            except Exception as e:
+                logger.error(f"Failed to connect to MCP server {self.server_key}: {e}")
+                self.is_connected = False
+                raise e
+        else:
+            # Assume HTTP transport where base_url IS the endpoint (simplified)
+            self.post_endpoint = self.base_url
+            self.is_connected = True
 
-    @staticmethod
-    def get_all_tool_definitions():
-        """获取所有可用工具的定义，格式化为 OpenAI Tool 格式"""
-        tools = MCPTool.query.join(MCPServer).filter(MCPServer.status == 'enabled').all()
-        definitions = []
-        for tool in tools:
-            server = MCPServer.query.get(tool.server_id)
-            # 构造唯一的工具名称：server_key__tool_name
-            unique_tool_name = f"{server.server_key}__{tool.name}"
+    def list_tools(self):
+        if not self.is_connected or not self.post_endpoint:
+            self.connect()
             
-            definitions.append({
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "tools/list",
+            "id": 1
+        }
+        return self._send_request(payload)
+
+    def call_tool(self, tool_name, arguments):
+        if not self.is_connected or not self.post_endpoint:
+            self.connect()
+
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": tool_name,
+                "arguments": arguments
+            },
+            "id": int(time.time())
+        }
+        return self._send_request(payload)
+
+    def _send_request(self, payload):
+        headers = {'Content-Type': 'application/json'}
+        if self.auth_token:
+            headers['Authorization'] = f"Bearer {self.auth_token}"
+            
+        try:
+            response = requests.post(self.post_endpoint, json=payload, headers=headers, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            
+            if 'error' in data:
+                raise Exception(f"MCP JSON-RPC Error: {data['error']}")
+                
+            return data.get('result', {})
+        except Exception as e:
+            logger.error(f"MCP Request Failed ({self.server_key}): {e}")
+            raise e
+
+class MCPClientManager:
+    _instance = None
+    _clients = {} # server_key -> MCPClient
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(MCPClientManager, cls).__new__(cls)
+        return cls._instance
+
+    def sync_all_servers(self, app):
+        """
+        Syncs all enabled servers from DB, updates tool definitions in DB.
+        Needs Flask App context.
+        """
+        logger.info("Syncing MCP Servers...")
+        with app.app_context():
+            servers = MCPServer.query.filter_by(status='enabled').all()
+            for server in servers:
+                try:
+                    self.sync_server(server)
+                except Exception as e:
+                    logger.error(f"Failed to sync server {server.name}: {e}")
+                    server.status = 'error'
+                    db.session.commit()
+
+    def sync_server(self, server: MCPServer):
+        client = MCPClient(server)
+        client.connect()
+        self._clients[server.server_key] = client
+        
+        # List Tools
+        result = client.list_tools()
+        tools_list = result.get('tools', [])
+        
+        # Update DB
+        server.tools_count = len(tools_list)
+        server.last_check_at = db.func.now()
+        server.status = 'active'
+        
+        # Clear old tools (simplified)
+        MCPTool.query.filter_by(server_id=server.id).delete()
+        
+        for tool_def in tools_list:
+            tool = MCPTool(
+                server_id=server.id,
+                name=tool_def['name'],
+                description=tool_def.get('description'),
+                input_schema=tool_def.get('inputSchema')
+            )
+            db.session.add(tool)
+            
+        db.session.commit()
+        logger.info(f"Synced server {server.name}: {len(tools_list)} tools found.")
+
+    def get_all_tools_definitions(self):
+        """
+        Returns OpenAI-compatible tool definitions for all active tools in DB.
+        """
+        tools = []
+        # Join query to get server key if needed, but for now just name
+        # Assumption: Tool names are unique enough or we prepend server key? 
+        # OpenAI requires unique names. Let's prepend server key if collision is risk, 
+        # but for now simple mapping.
+        
+        db_tools = MCPTool.query.all()
+        for t in db_tools:
+            tools.append({
                 "type": "function",
                 "function": {
-                    "name": unique_tool_name,
-                    "description": tool.description or "",
-                    "parameters": tool.input_schema
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.input_schema
                 }
             })
-        return definitions
+        return tools
 
-    @staticmethod
-    async def _connect_and_list_tools(server: MCPServer):
-        """(Internal) 连接 Server 并获取工具列表"""
-        if server.transport_type == 'sse' or server.transport_type == 'http':
-            # SSE 连接模式
-            # 注意：mcp 库的 sse_client 上下文管理器会自动处理连接
-            async with sse_client(server.base_url) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    result = await session.list_tools()
-                    return result.tools
-        else:
-            raise NotImplementedError(f"Unsupported transport type: {server.transport_type}")
-
-    @staticmethod
-    async def _connect_and_call_tool(server: MCPServer, tool_name: str, arguments: dict):
-        """(Internal) 连接 Server 并执行工具"""
-        if server.transport_type == 'sse' or server.transport_type == 'http':
-            async with sse_client(server.base_url) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    result = await session.call_tool(tool_name, arguments)
-                    return result
-        else:
-            raise NotImplementedError(f"Unsupported transport type: {server.transport_type}")
-
-    @classmethod
-    def sync_server_tools_sync(cls, server_id):
-        """同步指定 Server 的工具列表 (同步包装器)"""
-        return asyncio.run(cls.sync_server_tools(server_id))
-
-    @classmethod
-    async def sync_server_tools(cls, server_id):
-        """同步指定 Server 的工具列表"""
-        server = MCPServer.query.get(server_id)
+    def execute_tool(self, tool_name, arguments):
+        """
+        Finds the server owning the tool and executes it.
+        """
+        # Find tool in DB to get server_id
+        tool = MCPTool.query.filter_by(name=tool_name).first()
+        if not tool:
+            raise ValueError(f"Tool {tool_name} not found.")
+            
+        server = MCPServer.query.get(tool.server_id)
         if not server:
-            logger.error(f"Server ID {server_id} not found")
-            return False
+            raise ValueError(f"Server for tool {tool_name} not found.")
+            
+        # Get or Create Client
+        if server.server_key not in self._clients:
+            # We might need to re-init client if not in memory (e.g. after restart)
+            # This requires 'server' object which we have
+            self._clients[server.server_key] = MCPClient(server)
+            
+        client = self._clients[server.server_key]
+        
+        logger.info(f"Executing tool {tool_name} on server {server.name}")
+        result = client.call_tool(tool_name, arguments)
+        return result
 
-        try:
-            logger.info(f"Syncing tools for server: {server.name} ({server.base_url})")
-            tools_list = await cls._connect_and_list_tools(server)
-            
-            # 更新数据库
-            # 先删除该 Server 下的旧工具缓存
-            MCPTool.query.filter_by(server_id=server.id).delete()
-            
-            for tool_data in tools_list:
-                # tool_data 是 mcp.types.Tool 对象
-                new_tool = MCPTool(
-                    server_id=server.id,
-                    name=tool_data.name,
-                    description=tool_data.description,
-                    input_schema=tool_data.inputSchema
-                )
-                db.session.add(new_tool)
-            
-            server.tools_count = len(tools_list)
-            server.status = 'enabled' # 同步成功则视为可用
-            server.last_check_at = datetime.utcnow()
-            db.session.commit()
-            logger.info(f"Successfully synced {len(tools_list)} tools for server {server.name}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to sync tools for server {server.name}: {e}")
-            server.status = 'error'
-            server.last_check_at = datetime.utcnow()
-            db.session.commit()
-            return False
-
-    @classmethod
-    def execute_tool_sync(cls, unique_tool_name, arguments):
-        """执行工具 (同步包装器)"""
-        return asyncio.run(cls.execute_tool(unique_tool_name, arguments))
-
-    @classmethod
-    async def execute_tool(cls, unique_tool_name, arguments):
-        """执行工具"""
-        # 解析 server_key 和 tool_name
-        try:
-            server_key, tool_name = unique_tool_name.split('__', 1)
-        except ValueError:
-            return {"error": f"Invalid tool name format: {unique_tool_name}"}
-
-        server = MCPServer.query.filter_by(server_key=server_key).first()
-        if not server:
-            return {"error": f"Server with key {server_key} not found"}
-
-        try:
-            logger.info(f"Executing tool {tool_name} on server {server.name}")
-            result = await cls._connect_and_call_tool(server, tool_name, arguments)
-            
-            # result 是 CallToolResult 对象
-            output_text = []
-            if result.content:
-                for content in result.content:
-                    if content.type == 'text':
-                        output_text.append(content.text)
-                    elif content.type == 'image':
-                        output_text.append(f"[Image: {content.mimeType}]") # 暂不处理图片
-                    elif content.type == 'resource':
-                        output_text.append(f"[Resource: {content.uri}]")
-            
-            final_output = "\n".join(output_text)
-            
-            if result.isError:
-                return {"error": final_output}
-            
-            return {"result": final_output}
-
-        except Exception as e:
-            logger.error(f"Error executing tool {unique_tool_name}: {e}")
-            return {"error": str(e)}
+# Global Instance
+mcp_manager = MCPClientManager()

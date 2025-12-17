@@ -58,7 +58,8 @@ def process_event(event, publisher: RabbitMQPublisher):
     if tasks_history_list:
         request_data['history_tasks'] = tasks_history_list
 
-    yaml_data = yaml.dump(request_data, allow_unicode=True, default_flow_style=False)
+    # 将数据转换为JSON字符串而不是YAML
+    json_data = json.dumps(request_data, ensure_ascii=False, indent=2)
 
     # 上一轮总结
     last_round_summary_content = ""
@@ -78,23 +79,41 @@ def process_event(event, publisher: RabbitMQPublisher):
     请根据以下事件信息，分析当前态势，并为下级（_manager）制定下一步的任务清单。
     任务应当是战略性的，例如"调查IP信誉"、"隔离受感染主机"，而不是具体的工具命令。
     
-    事件详情 (YAML):
-    ```yaml
-    {yaml_data}
+    事件详情 (JSON):
+    ```json
+    {json_data}
     ```
     """
 
     try:
-        # Captain 不需要 tools 参数
-        response = call_llm(system_prompt, user_prompt)
+        # Captain 不需要 tools 参数，强制使用 json_mode
+        response = call_llm(system_prompt, user_prompt, json_mode=True)
         
         # 记录 LLM 响应
         _notify_frontend(publisher, event, '_captain', 'llm_response', {"text": response})
 
-        # 3. 解析响应 (YAML)
-        parsed_response = parse_yaml_response(response)
+        # 3. 解析响应 (JSON)
+        # 尝试解析 JSON
+        try:
+            parsed_response = json.loads(response)
+        except json.JSONDecodeError:
+             # 如果直接解析失败，尝试提取代码块中的 JSON
+            try:
+                if '```json' in response:
+                    json_str = response.split('```json')[1].split('```')[0].strip()
+                    parsed_response = json.loads(json_str)
+                elif '```' in response:
+                    json_str = response.split('```')[1].strip()
+                    parsed_response = json.loads(json_str)
+                else:
+                    logger.error(f"Captain 响应无法解析为JSON: {response}")
+                    return
+            except Exception as e:
+                logger.error(f"Captain JSON提取解析失败: {e}")
+                return
+
         if not parsed_response:
-            logger.error("Captain 解析响应失败")
+            logger.error("Captain 解析响应为空")
             return
 
         response_type = parsed_response.get('response_type')

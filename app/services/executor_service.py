@@ -6,7 +6,7 @@ from flask import current_app
 from sqlalchemy import func
 from app.models import db, Event, Task, Action, Command, Execution, Message
 from app.controllers.socket_controller import broadcast_message
-from app.mcp import MCPManager
+from app.mcp.client_manager import mcp_manager
 from app.utils.message_utils import create_standard_message
 from app.services.llm_service import call_llm
 import logging
@@ -71,16 +71,25 @@ def execute_mcp_tool(command):
     
     # 1. 实际执行
     try:
-        # execute_tool_sync 返回 {"result": "...", "error": "..."}
-        raw_output = MCPManager.execute_tool_sync(tool_name, arguments)
+        # 使用新的 mcp_manager 执行工具
+        from app.mcp.client_manager import mcp_manager
+        # mcp_manager.execute_tool 返回 result dict
+        raw_output = mcp_manager.execute_tool(tool_name, arguments)
+        
+        # raw_output 可能是 dict (包含 content) 或其他
+        if isinstance(raw_output, dict):
+            # MCP 规范中 result 可能包含 content list
+            content = raw_output.get('content', [])
+            if isinstance(content, list):
+                output_text = "\n".join([item.get('text', '') for item in content if item.get('type') == 'text'])
+            else:
+                output_text = str(raw_output)
+        else:
+            output_text = str(raw_output)
+            
     except Exception as e:
         return {"status": "failed", "message": f"MCP Client Error: {e}"}
 
-    if "error" in raw_output:
-        return {"status": "failed", "message": raw_output["error"]}
-    
-    output_text = raw_output.get("result", "")
-    
     # 2. 结果摘要 (如果不长，直接返回；如果太长，调用 LLM 摘要)
     summary = output_text
     if len(output_text) > 2000:

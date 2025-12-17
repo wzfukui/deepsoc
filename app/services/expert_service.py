@@ -86,7 +86,7 @@ def process_execution_summary(execution: Execution, publisher: RabbitMQPublisher
         }
         
         # 将上下文转换为JSON格式
-        yaml_context = yaml.dump(context, allow_unicode=True, default_flow_style=False, indent=2)
+        json_context = json.dumps(context, ensure_ascii=False, indent=2)
 
         # 构建系统提示词
         system_prompt = """
@@ -96,8 +96,8 @@ def process_execution_summary(execution: Execution, publisher: RabbitMQPublisher
         
         # 构建用户提示词
         user_prompt = f"""
-            ```yaml
-            {yaml_context}
+            ```json
+            {json_context}
             ```
             以上是基于_caption的任务安排，和_manager的动作细化，以及_operator的命令设置，通过SOAR安全之剧本执行的返回结果。
             当然也有可能是，人类工程师在页面手工完成的处置结果。
@@ -972,10 +972,10 @@ def generate_event_summary(event_id: str, publisher: RabbitMQPublisher):
             "commands": [{"id": c.command_id, "name": c.command_name, "status": c.command_status} for c in commands],
             "executions": [{"id": e.execution_id, "status": e.execution_status, "ai_summary": e.ai_summary} for e in executions]
         }
-        yaml_ctx = yaml.dump(ctx, allow_unicode=True, default_flow_style=False, indent=2)
+        json_ctx = json.dumps(ctx, ensure_ascii=False, indent=2)
 
-        system_prompt = """你是经验丰富的安全专家，请根据给定 YAML 信息生成仅包含客观事实的事件战况概述。"""
-        user_prompt = f"""```yaml\n{yaml_ctx}\n```\n请生成事件战况概述。"""
+        system_prompt = """你是经验丰富的安全专家，请根据给定 JSON 信息生成仅包含客观事实的事件战况概述。"""
+        user_prompt = f"""```json\n{json_ctx}\n```\n请生成事件战况概述。"""
 
         # 通知前端开始 LLM
         start_msg = create_standard_message(event_id=event_id, message_from='system', round_id=event.current_round, message_type='expert_llm_request_event_summary', content_data={"text": f"_expert 正在为事件 {event_id} 生成总结"})
