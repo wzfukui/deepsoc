@@ -139,4 +139,4 @@ def parse_yaml_response(response_text):
     except Exception as e:
         print(f"YAML解析错误: {e}")
         print(f"原始响应: {response_text}")
-        return None 
+        return None
