@@ -5,31 +5,69 @@ import yaml
 import logging
 from dotenv import load_dotenv
 from openai import OpenAI
-from app.models.models import db, LLMRecord
+from app.models.models import db, LLMRecord, LLMConfig
 
 # 加载环境变量
 load_dotenv()
 
-# 大模型配置
+# 大模型配置 (环境变量作为默认/回退)
 LLM_BASE_URL = os.getenv('LLM_BASE_URL', 'https://api.openai.com/v1')
 LLM_API_KEY = os.getenv('LLM_API_KEY')
 LLM_MODEL = os.getenv('LLM_MODEL', 'gpt-4o-mini')
 LLM_MODEL_LONG_TEXT = os.getenv('LLM_MODEL_LONG_TEXT', 'qwen-long')
 LLM_TEMPERATURE = float(os.getenv('LLM_TEMPERATURE', 0.6))
 
-# 全局客户端实例
-_client = None
+# 全局客户端实例缓存 (仅用于环境变量配置的情况，或者可以扩展为按config_type缓存)
+_env_client = None
 
-def get_client():
-    global _client
-    if _client is None:
+def get_client_and_model(config_type='reasoning'):
+    """
+    获取LLM客户端和模型名称。
+    优先从数据库读取配置，如果不存在或未激活，则回退到环境变量。
+    
+    Args:
+        config_type: 'reasoning' 或 'summary'
+    
+    Returns:
+        (client, model_name)
+    """
+    global _env_client
+    
+    # 尝试从数据库获取配置
+    try:
+        # 注意：这里假设在Flask应用上下文中调用。如果在非应用上下文（如独立脚本）可能需要处理
+        config = LLMConfig.query.filter_by(config_type=config_type, is_active=True).first()
+        
+        if config and config.api_key:
+            # 使用数据库配置创建客户端
+            # TODO: 这里可以添加缓存逻辑，避免每次请求都创建客户端
+            client = OpenAI(
+                api_key=config.api_key,
+                base_url=config.api_base if config.api_base else LLM_BASE_URL
+            )
+            model_name = config.model_name
+            return client, model_name
+            
+    except Exception as e:
+        # 数据库查询失败（可能是表未创建，或者不在上下文中）
+        logging.warning(f"读取数据库LLM配置失败({config_type}): {e}，回退到环境变量")
+
+    # 回退到环境变量
+    if _env_client is None:
         if not LLM_API_KEY:
-            raise ValueError("LLM_API_KEY环境变量未设置")
-        _client = OpenAI(
+            raise ValueError("LLM_API_KEY环境变量未设置且无有效的数据库配置")
+        _env_client = OpenAI(
             api_key=LLM_API_KEY,
             base_url=LLM_BASE_URL
         )
-    return _client
+    
+    # 根据类型返回默认模型名
+    if config_type == 'summary':
+        model_name = LLM_MODEL_LONG_TEXT
+    else:
+        model_name = LLM_MODEL
+    
+    return _env_client, model_name
 
 def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_text=False, 
              stream=False, json_mode=False, tools=None, tool_choice=None, **kwargs):
@@ -40,7 +78,7 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
         user_prompt: 用户提示词
         history: 历史对话记录，格式为[{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
         temperature: 温度参数，控制随机性
-        long_text: 是否使用长文本模型
+        long_text: 是否使用长文本模型 (对应 'summary' 配置)
         stream: 是否使用流式输出
         json_mode: 是否强制JSON格式输出
         tools: OpenAI格式的工具定义列表
@@ -53,8 +91,15 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
            - 如果 tools 不为 None，返回 OpenAI ChatCompletionMessage 对象 (包含 content 和 tool_calls)
         如果stream=True，返回生成器，生成每个chunk的内容 (不支持 tools)
     """
-    client = get_client()
-    model = LLM_MODEL_LONG_TEXT if long_text else LLM_MODEL
+    # 确定配置类型
+    config_type = 'summary' if long_text else 'reasoning'
+    
+    # 获取客户端和模型名
+    client, model_name = get_client_and_model(config_type)
+    
+    # 如果调用方强制指定了 model 参数，则覆盖自动获取的
+    if 'model' in kwargs:
+        model_name = kwargs.pop('model')
     
     # 构建消息列表
     messages = [{"role": "system", "content": system_prompt}]
@@ -64,16 +109,30 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
         messages.extend(history)
     
     # 添加当前用户提示
-    # 如果 user_prompt 为空字符串但 history 存在，OpenAI 可能报错，但这里我们假设调用方会控制
     if user_prompt:
         messages.append({"role": "user", "content": user_prompt})
     
     # 设置温度参数
-    temp = temperature if temperature is not None else LLM_TEMPERATURE
+    # 尝试从数据库配置获取温度（如果数据库中有配置）
+    db_temp = None
+    try:
+        config = LLMConfig.query.filter_by(config_type=config_type, is_active=True).first()
+        if config:
+            db_temp = config.temperature
+    except:
+        pass
+        
+    # 优先级: 参数传入 > 数据库配置 > 环境变量默认
+    if temperature is not None:
+        temp = temperature
+    elif db_temp is not None:
+        temp = db_temp
+    else:
+        temp = LLM_TEMPERATURE
     
     # 构建API参数
     api_params = {
-        "model": model,
+        "model": model_name,
         "messages": messages,
         "temperature": temp,
         "stream": stream,
@@ -84,7 +143,7 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
         if tool_choice:
             api_params["tool_choice"] = tool_choice
     
-    if json_mode and not tools: # JSON mode usually not compatible with tools in some contexts or redundant
+    if json_mode and not tools: 
         api_params["response_format"] = {"type": "json_object"}
         
     # 合并其他参数
@@ -96,12 +155,12 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
         if stream:
             if tools:
                  logging.warning("Stream mode is not fully supported with tools in this implementation yet.")
-            return _handle_stream_response(response, model, messages, api_params)
+            return _handle_stream_response(response, model_name, messages, api_params)
         else:
-            return _handle_normal_response(response, model, messages, api_params, tools_enabled=(tools is not None))
+            return _handle_normal_response(response, model_name, messages, api_params, tools_enabled=(tools is not None))
             
     except Exception as e:
-        logging.error(f"调用LLM失败: {e}")
+        logging.error(f"调用LLM失败(config={config_type}, model={model_name}): {e}")
         raise e
 
 def _handle_normal_response(response, model, messages, api_params, tools_enabled=False):
@@ -126,7 +185,7 @@ def _handle_normal_response(response, model, messages, api_params, tools_enabled
         # 记录到数据库
         _save_llm_record(
             request_id=response.id,
-            model_name=response.model,
+            model_name=model, # 使用实际调用的模型名
             messages=messages,
             response_content=content,
             response_full=response.model_dump(),
@@ -138,24 +197,22 @@ def _handle_normal_response(response, model, messages, api_params, tools_enabled
         )
         
         if tools_enabled:
-            return message # Return full message object for tool handling
+            return message 
         else:
-            return content # Keep backward compatibility
+            return content 
             
     except Exception as e:
         logging.error(f"处理LLM响应失败: {e}")
-        # 如果处理响应出错，尝试返回原始内容或抛出
         if hasattr(response, 'choices') and response.choices:
             return response.choices[0].message.content
         raise e
 
 def _handle_stream_response(response, model, messages, api_params):
     """处理流式响应"""
-    # 用于收集完整内容以便记录
     full_content = []
     full_reasoning = []
     request_id = None
-    model_name = model # 默认使用请求的模型名，流式响应可能不包含model字段在每个chunk
+    model_name = model 
     
     try:
         for chunk in response:
@@ -194,7 +251,7 @@ def _handle_stream_response(response, model, messages, api_params):
             messages=messages,
             response_content=content_str,
             response_full=response_full,
-            prompt_tokens=None, # 流式通常没有usage
+            prompt_tokens=None, 
             completion_tokens=None,
             total_tokens=None,
             cached_tokens=None,
@@ -231,24 +288,14 @@ def _save_llm_record(request_id, model_name, messages, response_content, respons
         db.session.commit()
     except Exception as e:
         logging.error(f"记录LLM请求失败: {e}")
-        # 不抛出异常，以免影响主流程
-        # 尝试 rollback
         try:
             db.session.rollback()
         except:
             pass
 
 def parse_yaml_response(response_text):
-    """解析YAML格式的大模型响应
-    
-    Args:
-        response_text: 大模型返回的YAML文本
-        
-    Returns:
-        解析后的Python对象
-    """
+    """解析YAML格式的大模型响应"""
     try:
-        # 尝试提取YAML部分
         if '```yaml' in response_text:
             yaml_parts = response_text.split('```yaml')
             if len(yaml_parts) > 1:
@@ -264,7 +311,6 @@ def parse_yaml_response(response_text):
         else:
             yaml_content = response_text
             
-        # 解析YAML
         return yaml.safe_load(yaml_content)
     except Exception as e:
         print(f"YAML解析错误: {e}")

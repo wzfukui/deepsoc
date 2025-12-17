@@ -404,3 +404,32 @@ class GlobalSetting(db.Model):
             'value': self.value,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
+
+class LLMConfig(db.Model):
+    """大模型配置表"""
+    __tablename__ = 'llm_configs'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    config_type = db.Column(db.String(32), unique=True, nullable=False) # 'reasoning' or 'summary'
+    api_type = db.Column(db.String(32), default='openai') # openai, azure
+    api_base = db.Column(db.String(256))
+    api_key = db.Column(db.Text)
+    model_name = db.Column(db.String(128))
+    api_version = db.Column(db.String(64))
+    temperature = db.Column(db.Float, default=0.7)
+    is_active = db.Column(db.Boolean, default=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'config_type': self.config_type,
+            'api_type': self.api_type,
+            'api_base': self.api_base,
+            'has_api_key': bool(self.api_key),
+            'model_name': self.model_name,
+            'api_version': self.api_version,
+            'temperature': self.temperature,
+            'is_active': self.is_active,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }

@@ -59,7 +59,10 @@ MCP 协议将作为**底层能力**支撑这一体系，但不同角色对 MCP �
 
 *   `MCPServer`: 存储 Server 配置 (url, token, etc.)。
 *   `MCPTool`: 存储同步下来的 Schema (name, description, input_schema)。
-*   `Task`, `Action`, `Command`, `Execution`: 现有的任务流转表结构基本保持不变，只需在 `Command` 表中增加对 MCP Tool 的字段支持（或复用现有字段）。
+*   `LLMConfig` (新增): 存储大模型动态配置，支持推理型和总结型模型分离。
+    *   `config_type`: 'reasoning' (推理) / 'summary' (总结)
+    *   `api_base`, `api_key`, `model_name`, `temperature`: 模型连接参数。
+*   `Task`, `Action`, `Command`, `Execution`: 现有的任务流转表结构基本保持不变。
 
 ## 5. 模块改造计划
 
@@ -79,5 +82,13 @@ MCP 协议将作为**底层能力**支撑这一体系，但不同角色对 MCP �
 *   **核心**: 集成 `MCPManager.execute_tool`。
 *   **增强**: 增加 "Result Summarization" 步骤，避免把几万字的原始日志直接扔进数据库，撑爆上层 Agent 的 Context Window。
 
+## 6. 基础设施升级：大模型动态配置
+
+为了提升灵活性，DeepSOC 从 v1.1 起支持通过界面动态配置大模型参数，取代了单一的 `.env` 环境变量配置。
+
+*   **配置隔离**：系统支持独立配置 **Reasoning Model**（用于 Captain/Manager/Operator 的复杂决策）和 **Summary Model**（用于 Executor 的长文本结果摘要）。
+*   **回退机制**：如果数据库中未检测到有效配置，系统会自动回退到使用环境变量（`LLM_API_KEY` 等）作为默认设置，确保向下兼容和系统稳定性。
+*   **Executor 优化**：Executor 在处理工具执行结果（如 Nmap 扫描日志）时，会自动使用 **Summary Model** 进行摘要，有效处理超长文本，降低 Token 消耗并防止上下文溢出。
+
 ---
-*文档版本: v1.0 | 日期: 2025-12-17*
+*文档版本: v1.1 | 日期: 2025-12-17*

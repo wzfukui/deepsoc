@@ -10,6 +10,10 @@ from app.models.models import (
     Prompt,
     GlobalSetting,
     User,
+    MCPServer,
+    MCPTool,
+    LLMConfig,
+    LLMRecord
 )
 
 __all__ = [
@@ -24,4 +28,8 @@ __all__ = [
     'Prompt',
     'GlobalSetting',
     'User',
+    'MCPServer',
+    'MCPTool',
+    'LLMConfig',
+    'LLMRecord'
 ]
