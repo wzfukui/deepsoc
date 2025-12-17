@@ -6,7 +6,7 @@
 
 ### 文档
 - 新增 `docs/Project_Review_2025.md`: 包含完整的项目架构审查报告、行业趋势对比及后续优化路线图。
-    - **UI/UX 升级规划**: 针对 Warroom 界面进行现代化改造，计划引入 Bento Grid 布局和 Clean Dark 风格，去除冗余的 AI 视觉元素。
+    - **UI/UX 升级规划**: 针对 Warroom 界面进行现代化改造，计划探索创新且清爽的视觉风格，优化交互体验。
     - **MCP 架构转型**: 规划引入 Model Context Protocol，将 DeepSOC 转型为 MCP Client 以对接 SOAR 等外部工具。
 
 ## [1.8.3] - 2025-07-07 - 优化README文档&工程师AI助手功能优化
