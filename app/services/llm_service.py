@@ -2,7 +2,9 @@ import os
 import json
 import requests
 import yaml
+import logging
 from dotenv import load_dotenv
+from openai import OpenAI
 from app.models.models import db, LLMRecord
 
 # 加载环境变量
@@ -15,7 +17,22 @@ LLM_MODEL = os.getenv('LLM_MODEL', 'gpt-4o-mini')
 LLM_MODEL_LONG_TEXT = os.getenv('LLM_MODEL_LONG_TEXT', 'qwen-long')
 LLM_TEMPERATURE = float(os.getenv('LLM_TEMPERATURE', 0.6))
 
-def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_text=False):
+# 全局客户端实例
+_client = None
+
+def get_client():
+    global _client
+    if _client is None:
+        if not LLM_API_KEY:
+            raise ValueError("LLM_API_KEY环境变量未设置")
+        _client = OpenAI(
+            api_key=LLM_API_KEY,
+            base_url=LLM_BASE_URL
+        )
+    return _client
+
+def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_text=False, 
+             stream=False, json_mode=False, **kwargs):
     """调用大模型API
     
     Args:
@@ -23,12 +40,16 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
         user_prompt: 用户提示词
         history: 历史对话记录，格式为[{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
         temperature: 温度参数，控制随机性
+        long_text: 是否使用长文本模型
+        stream: 是否使用流式输出
+        json_mode: 是否强制JSON格式输出
+        **kwargs: 传递给OpenAI API的其他参数
         
     Returns:
-        大模型返回的文本
+        如果stream=False，返回大模型返回的文本
+        如果stream=True，返回生成器，生成每个chunk的内容
     """
-    if not LLM_API_KEY:
-        raise ValueError("LLM_API_KEY环境变量未设置")
+    client = get_client()
     model = LLM_MODEL_LONG_TEXT if long_text else LLM_MODEL
     
     # 构建消息列表
@@ -44,69 +65,160 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
     # 设置温度参数
     temp = temperature if temperature is not None else LLM_TEMPERATURE
     
-    # 构建请求数据
-    data = {
+    # 构建API参数
+    api_params = {
         "model": model,
         "messages": messages,
-        "temperature": temp
+        "temperature": temp,
+        "stream": stream,
     }
     
-    # 发送请求
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {LLM_API_KEY}"
-    }
+    if json_mode:
+        api_params["response_format"] = {"type": "json_object"}
+        
+    # 合并其他参数
+    api_params.update(kwargs)
     
-    response = requests.post(
-        f"{LLM_BASE_URL}/chat/completions",
-        headers=headers,
-        json=data
-    )
-    
-    # 检查响应
-    if response.status_code != 200:
-        raise Exception(f"API请求失败: {response.status_code} - {response.text}")
-    
-    # 解析响应
-    result = response.json()
-    
-    # 记录请求和响应
     try:
-        # 提取响应内容
-        response_content = result["choices"][0]["message"]["content"]
+        response = client.chat.completions.create(**api_params)
         
-        # 提取usage信息
-        usage = result.get("usage", {})
-        prompt_tokens = usage.get("prompt_tokens", None)
-        completion_tokens = usage.get("completion_tokens", None)
-        total_tokens = usage.get("total_tokens", None)
+        if stream:
+            return _handle_stream_response(response, model, messages, api_params)
+        else:
+            return _handle_normal_response(response, model, messages, api_params)
+            
+    except Exception as e:
+        logging.error(f"调用LLM失败: {e}")
+        raise e
+
+def _handle_normal_response(response, model, messages, api_params):
+    """处理普通（非流式）响应"""
+    try:
+        choice = response.choices[0]
+        content = choice.message.content
         
-        # 提取缓存token信息
+        # 尝试获取 reasoning_content (DeepSeek R1等)
+        reasoning_content = getattr(choice.message, 'reasoning_content', None)
+        
+        # 准备记录的数据
+        usage = response.usage
+        prompt_tokens = usage.prompt_tokens if usage else None
+        completion_tokens = usage.completion_tokens if usage else None
+        total_tokens = usage.total_tokens if usage else None
         cached_tokens = None
-        if usage.get("prompt_tokens_details"):
-            cached_tokens = usage["prompt_tokens_details"].get("cached_tokens", None)
+        if hasattr(usage, 'prompt_tokens_details') and usage.prompt_tokens_details:
+             cached_tokens = getattr(usage.prompt_tokens_details, 'cached_tokens', None)
         
-        # 创建记录
+        # 记录到数据库
+        _save_llm_record(
+            request_id=response.id,
+            model_name=response.model,
+            messages=messages,
+            response_content=content,
+            response_full=response.model_dump(),
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            cached_tokens=cached_tokens,
+            reasoning_content=reasoning_content
+        )
+        
+        return content
+    except Exception as e:
+        logging.error(f"处理LLM响应失败: {e}")
+        # 如果处理响应出错，尝试返回原始内容或抛出
+        if hasattr(response, 'choices') and response.choices:
+            return response.choices[0].message.content
+        raise e
+
+def _handle_stream_response(response, model, messages, api_params):
+    """处理流式响应"""
+    # 用于收集完整内容以便记录
+    full_content = []
+    full_reasoning = []
+    request_id = None
+    model_name = model # 默认使用请求的模型名，流式响应可能不包含model字段在每个chunk
+    
+    try:
+        for chunk in response:
+            if not request_id and chunk.id:
+                request_id = chunk.id
+            if chunk.model:
+                model_name = chunk.model
+                
+            if chunk.choices:
+                delta = chunk.choices[0].delta
+                
+                # 处理内容
+                if delta.content:
+                    content_piece = delta.content
+                    full_content.append(content_piece)
+                    yield content_piece
+                
+                # 处理推理内容
+                if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                    reasoning_piece = delta.reasoning_content
+                    full_reasoning.append(reasoning_piece)
+                    
+        # 流结束后记录
+        content_str = "".join(full_content)
+        reasoning_str = "".join(full_reasoning) if full_reasoning else None
+        
+        response_full = {
+            "streamed": True,
+            "content": content_str,
+            "reasoning_content": reasoning_str
+        }
+        
+        _save_llm_record(
+            request_id=request_id,
+            model_name=model_name,
+            messages=messages,
+            response_content=content_str,
+            response_full=response_full,
+            prompt_tokens=None, # 流式通常没有usage
+            completion_tokens=None,
+            total_tokens=None,
+            cached_tokens=None,
+            reasoning_content=reasoning_str
+        )
+        
+    except Exception as e:
+        logging.error(f"流式处理失败: {e}")
+        raise e
+
+def _save_llm_record(request_id, model_name, messages, response_content, response_full, 
+                     prompt_tokens, completion_tokens, total_tokens, cached_tokens, reasoning_content=None):
+    """保存调用记录"""
+    try:
+        # 如果有 reasoning_content，添加到 response_full 中
+        if reasoning_content:
+            if isinstance(response_full, dict):
+                response_full['reasoning_content'] = reasoning_content
+            
         llm_record = LLMRecord(
-            request_id=result.get("id"),
-            model_name=result.get("model", model),
+            request_id=request_id,
+            model_name=model_name,
             request_messages=messages,
             response_content=response_content,
-            response_full=result,
+            response_full=response_full,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
             cached_tokens=cached_tokens
         )
         
-        # 保存到数据库
+        # 使用当前上下文的 session
         db.session.add(llm_record)
         db.session.commit()
     except Exception as e:
-        print(f"记录LLM请求失败: {e}")
-        # 记录失败不影响主流程，继续返回结果
-    
-    return result["choices"][0]["message"]["content"]
+        logging.error(f"记录LLM请求失败: {e}")
+        # 不抛出异常，以免影响主流程
+        # 尝试 rollback
+        try:
+            db.session.rollback()
+        except:
+            pass
 
 def parse_yaml_response(response_text):
     """解析YAML格式的大模型响应
@@ -139,4 +251,4 @@ def parse_yaml_response(response_text):
     except Exception as e:
         print(f"YAML解析错误: {e}")
         print(f"原始响应: {response_text}")
-        return None 
+        return None

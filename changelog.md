@@ -2,6 +2,20 @@
 
 ## [未发布]
 
+## [1.9.0] - 2025-12-17 - 重构底层 LLM 调用方式
+
+### 核心变更
+- **重构 LLM 服务**: 废弃 `requests` 方式，全面转向 OpenAI 官方 Python SDK (`openai>=1.0.0`)。
+- **流式支持**: 新增 `stream=True` 参数支持流式响应 (Streaming Response)。
+- **结构化输出**: 新增 `json_mode=True` 参数支持 JSON 模式 (Structured Outputs)。
+- **Thinking 特征**: 支持捕获并记录部分模型 (如 DeepSeek R1) 的推理过程 (`reasoning_content`)。
+
+### 详细说明
+- 更新 `app/services/llm_service.py`，实现更健壮、兼容性更好的 LLM 调用。
+- 无论普通调用还是流式调用，系统均会完整记录 LLM 的输入输出日志到数据库 (`LLMRecord`)，包括推理内容。
+- 此变更保持了旧有接口的基本兼容性，同时为未来更高级的交互特性打下基础。
+
+
 ## [1.8.3] - 2025-07-07 - 优化README文档&工程师AI助手功能优化
 
 ### 优化README
