@@ -875,252 +875,190 @@ function addMessage(message) {
     // lastMessageId = Math.max(lastMessageId, message.id);
     // 注意: fetchEventMessages 中计算 lastId 的方式 (从 messagesData 获取最大值) 更可靠
 
-    // 3. 创建DOM元素并追加 (以下为原 addMessage 中的渲染逻辑)
+    // 3. 创建DOM元素并追加 (Refactored for Clean Corporate Style)
     const messageElement = document.createElement('div');
     
-    // 设置消息样式
-    let messageClass = 'message';
-    if (message.message_from === '_captain') {
-        messageClass += ' message-captain';
-    } else if (message.message_from === '_manager') {
-        messageClass += ' message-manager';
-    } else if (message.message_from === '_operator') {
-        messageClass += ' message-operator';
-    } else if (message.message_from === '_executor') {
-        messageClass += ' message-executor';
-    } else if (message.message_from === '_expert') {
-        messageClass += ' message-expert';
-    } else if (message.message_from === 'system') {
-        messageClass += ' message-system';
-        if (message.message_type === 'llm_request') {
-            messageClass += ' message-llm-request';
-        }
+    // Role Class Mapping
+    const roleClasses = {
+        '_captain': 'message-captain',
+        '_manager': 'message-manager',
+        '_operator': 'message-operator',
+        '_executor': 'message-executor',
+        '_expert': 'message-expert',
+        'system': 'message-system',
+        'user': 'message-user'
+    };
+
+    let baseClass = 'message';
+    if (roleClasses[message.message_from]) {
+        baseClass += ' ' + roleClasses[message.message_from];
     } else if (message.message_category === 'engineer_chat') {
-        // 工程师对话消息
-        if (message.sender_type === 'user') {
-            messageClass += ' message-engineer-question';
-        } else if (message.sender_type === 'ai') {
-            messageClass += ' message-ai-assistant';
-        }
+        if (message.sender_type === 'user') baseClass += ' message-user';
+        else if (message.sender_type === 'ai') baseClass += ' message-expert'; // AI Assistant uses expert style
     } else {
-        messageClass += ' message-user';
+        baseClass += ' message-user'; // Fallback
     }
-    if (message.pending) {
-        messageClass += ' message-pending';
-    }
-    messageElement.className = messageClass;
-    
-    // 为思考指示器设置特殊的data属性
+
+    if (message.pending) baseClass += ' message-pending';
+    messageElement.className = baseClass;
+
     if (message.message_type === 'thinking') {
         messageElement.setAttribute('data-message-type', 'thinking');
     }
+
+    const senderName = getSenderName(message);
+    const timeStr = formatDateTime(message.created_at);
     
-    let messageContent = '';
-    messageContent += `
-        <div class="message-header">
-            <span class="message-sender">${getSenderName(message)}</span>
-            <div class="message-time-container">
-                <span class="message-source-btn" onclick="showMessageSourceModal('${message.message_id}')">
-                    <i class="fas fa-code" title="查看源码"></i>
-                </span>
-                <span class="message-time">${formatDateTime(message.created_at)}</span>
+    // Role Badge (Optional, good for identifying agents)
+    let roleBadge = '';
+    if (message.message_from.startsWith('_')) {
+        const roleNames = {
+            '_captain': 'CAPTAIN',
+            '_manager': 'MANAGER',
+            '_operator': 'OPERATOR',
+            '_executor': 'EXECUTOR',
+            '_expert': 'EXPERT'
+        };
+        roleBadge = `<span class="message-role-badge">${roleNames[message.message_from] || 'AGENT'}</span>`;
+    }
+
+    if (message.message_type === 'thinking') {
+        // Thinking indicator style
+        messageHTML = `
+            <div class="message-header" style="justify-content: center;">
+                <span class="message-sender" style="color: var(--role-expert-color);">AI Assistant</span>
             </div>
-        </div>
-    `;
-    messageContent += '<div class="message-content">';
-
-    // 防御性检查消息类型
-    if (!message.message_type) {
-        console.warn('[addMessage] 消息缺少message_type字段，设置默认值');
-        message.message_type = 'chat'; // 默认类型
-    }
-    
-    // 处理消息内容逻辑
-    if (message.message_type === 'llm_request' || (message.message_type && message.message_type.includes('_llm_request'))) {
-        let requestContent = '';
-        let data = extractMessageData(message.message_content);
-        if (typeof data === 'object' && data !== null) {
-            if (typeof data.text === 'string') {
-                requestContent = data.text;
-            } else {
-                requestContent = JSON.stringify(data);
-            }
-        } else {
-            requestContent = data;
-        }
-        messageContent += `<div class="llm-request-notification"><p>${requestContent}</p></div>`;
-    } else if (message.message_type === 'llm_response' || (message.message_type && message.message_type.includes('_llm_response'))) {
-        const content = message.message_content;
-        let data = extractMessageData(content);
-        if (message.message_from === '_captain') {
-            if (data.response_type === 'TASK') {
-                messageContent += `<p>${data.response_text || '分配任务'}</p>`;
-                if (data.tasks && data.tasks.length > 0) {
-                    messageContent += '<div class="task-list">';
-                    data.tasks.forEach(task => {
-                        const taskType = getTaskTypeText(task.task_type);
-                        let assignee_name = '未指定';
-                        let assignee_role = '';
-                        if (task.task_assignee === '_manager') { assignee_name = '安全管理员'; assignee_role = 'manager'; }
-                        else if (task.task_assignee === '_operator') { assignee_name = '安全工程师'; assignee_role = 'operator'; }
-                        else if (task.task_assignee === '_executor') { assignee_name = '执行器'; assignee_role = 'executor'; }
-                        else if (task.task_assignee === '_expert') { assignee_name = '安全专家'; assignee_role = 'expert'; }
-                        else if (task.task_assignee === '_coordinator') { assignee_name = '协调员'; assignee_role = 'coordinator'; }
-                        else if (task.task_assignee === '_analyst') { assignee_name = '分析员'; assignee_role = 'analyst'; }
-                        else if (task.task_assignee === '_responder') { assignee_name = '处置员'; assignee_role = 'responder'; }
-                        const shortTaskId = task.task_id ? String(task.task_id).substring(0, 8) : '';
-                        messageContent += `<div class="task-item task-type-${task.task_type}"><span class="task-assignee role-${assignee_role}">@${assignee_name}</span> <span class="task-name">${task.task_name}</span> <span class="task-type">${taskType}</span> <span class="task-id">${shortTaskId}</span></div>`;
-                    });
-                    messageContent += '</div>';
-                }
-            } else {
-                messageContent += `<p>${data.response_text || JSON.stringify(data)}</p>`;
-            }
-        } else if (message.message_from === '_manager') {
-            if (data.response_type === 'ACTION') {
-                messageContent += `<p>${data.response_text || '安排动作'}</p>`;
-                if (data.actions && data.actions.length > 0) {
-                    messageContent += '<div class="action-list">';
-                    data.actions.forEach(action => {
-                        const actionType = action.action_type || 'default';
-                        let assignee_name = '未指定';
-                        let assignee_role = '';
-                        if (action.action_assignee === '_manager') { assignee_name = '安全管理员'; assignee_role = 'manager'; }
-                        else if (action.action_assignee === '_operator') { assignee_name = '安全工程师'; assignee_role = 'operator'; }
-                        else if (action.action_assignee === '_executor') { assignee_name = '执行器'; assignee_role = 'executor'; }
-                        else if (action.action_assignee === '_expert') { assignee_name = '安全专家'; assignee_role = 'expert'; }
-                        else if (action.action_assignee === '_analyst') { assignee_name = '分析员'; assignee_role = 'analyst'; }
-                        else if (action.action_assignee === '_responder') { assignee_name = '处置员'; assignee_role = 'responder'; }
-                        else if (action.action_assignee === '_coordinator') { assignee_name = '协调员'; assignee_role = 'coordinator'; }
-                        const shortTaskId = action.task_id ? String(action.task_id).substring(0, 8) : '';
-                        const shortActionId = action.action_id ? String(action.action_id).substring(0, 8) : '';
-                        const idInfo = `${shortTaskId}->${shortActionId}`;
-                        messageContent += `<div class="action-item action-type-${actionType}"><span class="action-assignee role-${assignee_role}">@${assignee_name}</span> <span class="action-name">${action.action_name}</span> <span class="action-id">${idInfo}</span></div>`;
-                    });
-                    messageContent += '</div>';
-                }
-            } else {
-                messageContent += `<p>${data.response_text || JSON.stringify(data)}</p>`;
-            }
-        } else { // Other roles llm_response
-            if (data.response_type === 'TASK') {
-                messageContent += `<p>${data.response_text || '分配任务'}</p>`;
-                if (data.tasks && data.tasks.length > 0) {
-                    messageContent += '<pre>';
-                    data.tasks.forEach(task => { messageContent += `- ${task.task_name} (${getTaskTypeText(task.task_type)})\n`; });
-                    messageContent += '</pre>';
-                }
-            } else if (data.response_type === 'ACTION') {
-                messageContent += `<p>${data.response_text || '安排动作'}</p>`;
-                if (data.actions && data.actions.length > 0) {
-                    messageContent += '<pre>';
-                    data.actions.forEach(action => { messageContent += `- ${action.action_name} (任务: ${action.task_id})\n`; });
-                    messageContent += '</pre>';
-                }
-            } else if (data.response_type === 'COMMAND') {
-                messageContent += `<p>${data.response_text || '准备命令'}</p>`;
-                if (data.commands && data.commands.length > 0) {
-                    messageContent += '<div class="command-list">';
-                    data.commands.forEach(command => {
-                        const shortTaskId = command.task_id ? String(command.task_id).substring(0, 8) : '';
-                        const shortActionId = command.action_id ? String(command.action_id).substring(0, 8) : '';
-                        const shortCommandId = command.command_id ? String(command.command_id).substring(0, 8) : '';
-                        const idInfo = `${shortTaskId}->${shortActionId}->${shortCommandId}`;
-                        let assignee_name = '未指定';
-                        let assignee_role = '';
-                        if (command.command_assignee === '_manager') { assignee_name = '安全管理员'; assignee_role = 'manager'; }
-                        else if (command.command_assignee === '_operator') { assignee_name = '安全工程师'; assignee_role = 'operator'; }
-                        else if (command.command_assignee === '_executor') { assignee_name = '执行器'; assignee_role = 'executor'; }
-                        else if (command.command_assignee === '_expert') { assignee_name = '安全专家'; assignee_role = 'expert'; }
-                        else if (command.command_assignee === '_analyst') { assignee_name = '分析员'; assignee_role = 'analyst'; }
-                        else if (command.command_assignee === '_responder') { assignee_name = '处置员'; assignee_role = 'responder'; }
-                        else if (command.command_assignee === '_coordinator') { assignee_name = '协调员'; assignee_role = 'coordinator'; }
-                        messageContent += `<div class="command-item command-type-${command.command_type || 'default'}"><span class="command-assignee role-${assignee_role}">@${assignee_name}</span> <span class="command-name">${command.command_name}</span> <span class="command-type">${command.command_type || ''}</span> <span class="command-id">${idInfo}</span></div>`;
-                    });
-                    messageContent += '</div>';
-                }
-            } else {
-                messageContent += `<p>${data.response_text || JSON.stringify(data)}</p>`;
-            }
-        }
-    } else if (message.message_type === 'command_result') {
-        const content = message.message_content;
-        let data = extractMessageData(content);
-        if (message.message_from === '_executor') {
-            messageContent += `<p>命令 "${data.command_name}" 执行${data.status === 'completed' ? '成功' : '失败'}</p>`;
-            if (data.ai_summary) {
-                messageContent += `<div class="ai-summary markdown-content">${marked.parse(data.ai_summary)}</div>`;
-            }
-            if (data.result) {
-                const resultId = `result-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-                messageContent += `<div class="collapsible-result"><div class="collapsible-header" onclick="toggleCollapsible('${resultId}')"><span class="collapse-icon">▶</span> 查看详细结果</div><div id="${resultId}" class="collapsible-content collapsed"><pre>${JSON.stringify(data.result, null, 2)}</pre></div></div>`;
-            }
-        } else {
-            messageContent += `<p>命令 "${data.command_name}" 执行${data.status === 'completed' ? '成功' : '失败'}</p>`;
-            if (data.result) {
-                messageContent += `<pre>${JSON.stringify(data.result, null, 2)}</pre>`;
-            }
-        }
-    } else if (message.message_type === 'execution_summary' || message.message_type === 'execution_summary_generated') {
-        const content = message.message_content;
-        let data = extractMessageData(content);
-        if (message.message_from === '_expert' && data.ai_summary) {
-            messageContent += `<p>执行结果摘要:</p><div class="ai-summary markdown-content">${marked.parse(data.ai_summary)}</div>`;
-        } else {
-            messageContent += `<p>执行结果摘要:</p><p>${data.ai_summary}</p>`;
-        }
-    } else if (message.message_type === 'event_summary' || message.message_type === 'event_summary_generated') {
-        const content = message.message_content;
-        let data = extractMessageData(content);
-        if (message.message_from === '_expert') {
-            messageContent += `<p>事件总结 (轮次 ${data.round_id}):</p><div class="event-summary markdown-content">${marked.parse(data.event_summary)}</div>`;
-        } else {
-            messageContent += `<p>事件总结 (轮次 ${data.round_id}):</p><p>${data.event_summary}</p>`;
-        }
-    } else if (message.message_type === 'system_notification') {
-        const content = message.message_content;
-        let data = extractMessageData(content);
-        messageContent += `<div class="system-notification"><p>${data.response_text}</p></div>`;
-    } else if (message.message_category === 'engineer_chat') {
-        // 处理工程师对话消息
-        const content = message.message_content;
-        let data = extractMessageData(content);
-        let chatContent = '';
-        
-        if (typeof data === 'object' && data !== null) {
-            chatContent = data.content || data.text || JSON.stringify(data);
-        } else {
-            chatContent = data || '';
-        }
-        
-        if (message.sender_type === 'user') {
-            messageContent += `<div class="engineer-question"><p>${chatContent}</p></div>`;
-        } else if (message.sender_type === 'ai') {
-            // AI助手回复支持Markdown渲染
-            messageContent += `<div class="ai-response markdown-content">${marked.parse(chatContent)}</div>`;
-        }
+            <div class="message-content" style="text-align: center; font-style: italic; opacity: 0.8; background: transparent; border: none; box-shadow: none;">
+                <div class="loading-dots"><span></span><span></span><span></span></div>
+                <span>Thinking...</span>
+            </div>
+        `;
     } else {
-        // 普通消息，确保 message.message_content 不是对象。如果是对象，尝试提取 data.text 或 stringify
-        let plainTextContent = message.message_content;
-        if (typeof plainTextContent === 'object' && plainTextContent !== null) {
-            if (plainTextContent.data && typeof plainTextContent.data.text === 'string') {
-                plainTextContent = plainTextContent.data.text;
-            } else if (typeof plainTextContent.text === 'string') {
-                 plainTextContent = plainTextContent.text;
-            } else {
-                plainTextContent = JSON.stringify(plainTextContent);
+        messageHTML = `
+            <div class="message-header">
+                <span class="message-sender">${senderName}</span>
+                ${roleBadge}
+                <span class="message-time" style="margin-left: auto; font-size: 0.75rem; opacity: 0.6;">${timeStr}</span>
+                <span class="message-source-btn" onclick="showMessageSourceModal('${message.message_id}')" style="cursor: pointer; opacity: 0.5;">
+                    <i class="fas fa-code"></i>
+                </span>
+            </div>
+            <div class="message-content">
+        `;
+        // ... (rest of the content logic)
+        
+        // Content Rendering Logic
+        const content = message.message_content;
+        const data = extractMessageData(content);
+
+        // --- Type Specific Rendering ---
+        
+        // 1. LLM Request (Input)
+        if (message.message_type === 'llm_request' || (message.message_type && message.message_type.includes('_llm_request'))) {
+            let text = (typeof data === 'object') ? (data.text || JSON.stringify(data)) : data;
+            messageHTML += `<div style="font-style: italic; color: var(--text-secondary);"><i class="fas fa-arrow-right"></i> ${text}</div>`;
+        } 
+        
+        // 2. LLM Response (Output - Tasks/Actions/Commands)
+        else if (message.message_type === 'llm_response' || (message.message_type && message.message_type.includes('_llm_response'))) {
+            const respType = data.response_type;
+            const respText = data.response_text || '';
+            
+            if (respText) messageHTML += `<p>${respText}</p>`;
+
+            if (respType === 'TASK' && data.tasks) {
+                messageHTML += `<div class="task-list">`;
+                data.tasks.forEach(t => {
+                    messageHTML += `
+                        <div class="task-item">
+                            <i class="bi bi-check-circle"></i>
+                            <span><strong>@${t.task_assignee}</strong>: ${t.task_name}</span>
+                            <span class="badge bg-secondary" style="font-size: 0.7em; margin-left: auto;">${t.task_type}</span>
+                        </div>`;
+                });
+                messageHTML += `</div>`;
+            } else if (respType === 'ACTION' && data.actions) {
+                messageHTML += `<div class="action-list">`;
+                data.actions.forEach(a => {
+                    messageHTML += `
+                        <div class="action-item">
+                            <i class="bi bi-lightning-charge"></i>
+                            <span><strong>@${a.action_assignee}</strong>: ${a.action_name}</span>
+                        </div>`;
+                });
+                messageHTML += `</div>`;
+            } else if (respType === 'COMMAND' && data.commands) {
+                messageHTML += `<div class="command-list">`;
+                data.commands.forEach(c => {
+                    // Determine if manual or tool
+                    const icon = c.command_type === 'manual' ? 'bi-person-fill-gear' : 'bi-terminal';
+                    messageHTML += `
+                        <div class="command-item">
+                            <i class="bi ${icon}"></i>
+                            <span>${c.command_name}</span>
+                            <code style="font-size: 0.75em; margin-left: auto;">${c.command_type}</code>
+                        </div>`;
+                });
+                messageHTML += `</div>`;
             }
         }
-        messageContent += `<p>${plainTextContent}</p>`;
-    }
-    // End of placeholder for detailed message content rendering logic
+        
+        // 3. Command Result
+        else if (message.message_type === 'command_result') {
+            const statusIcon = data.status === 'completed' || data.status === 'success' ? '✅' : '❌';
+            messageHTML += `<div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <span>${statusIcon} <strong>${data.command_name}</strong></span>
+            </div>`;
+            
+            if (data.ai_summary) {
+                messageHTML += `<div class="markdown-content" style="font-size: 0.9em; color: var(--text-secondary); border-left: 2px solid var(--border-color); padding-left: 0.5rem;">${marked.parse(data.ai_summary)}</div>`;
+            }
+            
+            // Collapsible Raw Result
+            if (data.result) {
+                const resultId = `res-${Date.now()}-${Math.floor(Math.random()*1000)}`;
+                messageHTML += `
+                    <div style="margin-top: 0.5rem;">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="document.getElementById('${resultId}').style.display = document.getElementById('${resultId}').style.display === 'none' ? 'block' : 'none'">
+                            JSON Output
+                        </button>
+                        <div id="${resultId}" style="display: none; margin-top: 0.5rem;">
+                            <pre>${JSON.stringify(data.result, null, 2)}</pre>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        // 4. Summaries
+        else if (message.message_type && message.message_type.includes('summary')) {
+            const summaryText = data.ai_summary || data.event_summary || data.summary || JSON.stringify(data);
+            messageHTML += `<div class="markdown-content">${marked.parse(summaryText)}</div>`;
+        }
+        
+        // 5. Engineer Chat
+        else if (message.message_category === 'engineer_chat') {
+            let chatText = '';
+            if (typeof data === 'object') chatText = data.content || data.text || JSON.stringify(data);
+            else chatText = data;
+            
+            messageHTML += `<div class="markdown-content">${marked.parse(chatText)}</div>`;
+        }
+        
+        // 6. Default / Fallback
+        else {
+            let text = typeof content === 'object' ? JSON.stringify(content) : content;
+            if (data && data.text) text = data.text; // System notifications often use this
+            messageHTML += `<p>${text}</p>`;
+        }
 
-    messageContent += '</div>';
-    messageElement.innerHTML = messageContent;
+        messageHTML += `</div>`; // End message-content
+    }
+    messageElement.innerHTML = messageHTML;
     messageElement.id = `msg-${message.temp_id || message.message_id || message.id}`;
     elements.chatMessages.appendChild(messageElement);
 
-    return true; // 表示消息已成功添加并渲染
+    return true;
 }
 
 // 添加折叠/展开功能
@@ -1818,23 +1756,46 @@ function copyMessageSource() {
         return;
     }
     const text = JSON.stringify(message, null, 2);
-    navigator.clipboard.writeText(text)
-        .then(() => {
+    
+    // 使用 Clipboard API
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+            .then(() => {
+                showToast('已复制到剪贴板', 'success');
+            })
+            .catch(() => {
+                showToast('复制失败', 'error');
+            });
+    } else {
+        // Fallback
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            document.execCommand('copy');
             showToast('已复制到剪贴板', 'success');
-        })
-        .catch(() => {
+        } catch (err) {
             showToast('复制失败', 'error');
-        });
+        }
+        document.body.removeChild(textarea);
+    }
 }
 // 滚动到底部
 function scrollToBottom() {
+    if (!elements.chatMessages) return; // Guard clause
+    
     // 使用requestAnimationFrame确保DOM更新后再滚动
     requestAnimationFrame(() => {
-        elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+        const scrollHeight = elements.chatMessages.scrollHeight;
+        const height = elements.chatMessages.clientHeight;
+        const maxScrollTop = scrollHeight - height;
         
-        // 再次确认滚动到底部（有时单次滚动可能不够）
+        elements.chatMessages.scrollTop = maxScrollTop > 0 ? maxScrollTop : 0;
+        
+        // 再次确认滚动到底部（有时单次滚动可能不够，特别是内容包含图片或动态加载元素时）
         setTimeout(() => {
-            elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+            if(elements.chatMessages) elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
         }, 100);
     });
 }
