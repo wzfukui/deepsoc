@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模型设置 - DeepSOC</title>
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <img src="/static/images/logo/logo.png" alt="DeepSOC Logo" height="30" class="me-2">
+                DeepSOC
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">首页</a>
+                    </li>
+                    <li class="nav-item" id="user-management-nav-item">
+                        <a class="nav-link" href="/user-management">用户管理</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle active" href="#" id="settings-dropdown" role="button" data-bs-toggle="dropdown">设置</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/settings/prompts">提示词管理</a></li>
+                            <li><a class="dropdown-item" href="/settings/background-security">安全背景</a></li>
+                            <li><a class="dropdown-item active" href="/settings/llm">模型设置</a></li>
+                            <li><a class="dropdown-item" href="/settings/mcp-tools">MCP Tools</a></li>
+                        </ul>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown" id="user-nav-item">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <span id="user-info">用户</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/change-password">修改密码</a></li>
+                            <li><a class="dropdown-item" href="#" id="logout-btn">退出登录</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <header class="mb-4 d-flex justify-content-between align-items-center">
+            <h3>大模型参数配置</h3>
+        </header>
+
+        <div class="row">
+            <!-- 推理模型配置 -->
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">推理模型 (Reasoning)</h5>
+                        <small class="text-muted">用于安全事件分析与决策</small>
+                    </div>
+                    <div class="card-body">
+                        <form id="reasoning-form">
+                            <input type="hidden" name="config_type" value="reasoning">
+                            <div class="mb-3">
+                                <label class="form-label">API Base URL</label>
+                                <input type="text" class="form-control" name="api_base" placeholder="https://api.openai.com/v1">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">API Key</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" name="api_key" placeholder="sk-...">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this)">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">留空则不修改。如果未配置，将使用系统环境变量。</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Model Name</label>
+                                <input type="text" class="form-control" name="model_name" placeholder="gpt-4o-mini">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Temperature</label>
+                                <input type="number" step="0.1" min="0" max="2" class="form-control" name="temperature" value="0.7">
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="is_active" checked>
+                                <label class="form-check-label">启用此配置</label>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <button type="button" class="btn btn-outline-primary" onclick="testConnection('reasoning')">测试连接</button>
+                                <button type="submit" class="btn btn-primary">保存配置</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 总结模型配置 -->
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">总结模型 (Summary)</h5>
+                        <small class="text-muted">用于长文本归纳与总结</small>
+                    </div>
+                    <div class="card-body">
+                        <form id="summary-form">
+                            <input type="hidden" name="config_type" value="summary">
+                            <div class="mb-3">
+                                <label class="form-label">API Base URL</label>
+                                <input type="text" class="form-control" name="api_base" placeholder="https://api.openai.com/v1">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">API Key</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" name="api_key" placeholder="sk-...">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this)">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">留空则不修改。</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Model Name</label>
+                                <input type="text" class="form-control" name="model_name" placeholder="qwen-long">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Temperature</label>
+                                <input type="number" step="0.1" min="0" max="2" class="form-control" name="temperature" value="0.5">
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="is_active" checked>
+                                <label class="form-check-label">启用此配置</label>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <button type="button" class="btn btn-outline-primary" onclick="testConnection('summary')">测试连接</button>
+                                <button type="submit" class="btn btn-primary">保存配置</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast容器 -->
+    <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 内联JS处理配置加载和保存
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check auth
+            const token = getCookie('access_token');
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+
+            loadConfigs();
+            
+            // 绑定表单提交
+            document.getElementById('reasoning-form').addEventListener('submit', (e) => saveConfig(e, 'reasoning'));
+            document.getElementById('summary-form').addEventListener('submit', (e) => saveConfig(e, 'summary'));
+            
+            // 退出登录
+            document.getElementById('logout-btn').addEventListener('click', function(e) {
+                e.preventDefault();
+                document.cookie = 'access_token=; Max-Age=0; path=/;';
+                window.location.href = '/login'; 
+            });
+
+            // 获取当前用户信息
+            fetch('/api/auth/me', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    document.getElementById('user-info').textContent = data.user.nickname || data.user.username;
+                    // Check admin
+                    if (data.user.role !== 'admin') {
+                        alert('只有管理员可以访问此页面');
+                        window.location.href = '/';
+                    }
+                }
+            });
+        });
+
+        async function loadConfigs() {
+            try {
+                const token = getCookie('access_token');
+                const response = await fetch('/api/llm-config/', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    if (data.data.reasoning) fillForm('reasoning', data.data.reasoning);
+                    if (data.data.summary) fillForm('summary', data.data.summary);
+                }
+            } catch (error) {
+                console.error('加载配置失败', error);
+            }
+        }
+
+        function fillForm(type, data) {
+            const form = document.getElementById(type + '-form');
+            form.querySelector('[name="api_base"]').value = data.api_base || '';
+            form.querySelector('[name="model_name"]').value = data.model_name || '';
+            form.querySelector('[name="temperature"]').value = data.temperature || 0.7;
+            form.querySelector('[name="is_active"]').checked = data.is_active;
+            // API Key 不回显，但如果已存在，显示提示
+            const keyInput = form.querySelector('[name="api_key"]');
+            if (data.has_api_key) {
+                keyInput.placeholder = "已配置 (输入新值以覆盖)";
+            }
+        }
+
+        async function saveConfig(e, type) {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            const payload = {
+                config_type: type,
+                api_base: formData.get('api_base'),
+                model_name: formData.get('model_name'),
+                temperature: formData.get('temperature'),
+                is_active: formData.get('is_active') === 'on',
+                api_key: formData.get('api_key') || null
+            };
+
+            try {
+                const token = getCookie('access_token');
+                const response = await fetch('/api/llm-config/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (result.status === 'success') {
+                    showToast('保存成功', 'success');
+                    // 刷新显示
+                    if (result.data.has_api_key) {
+                         form.querySelector('[name="api_key"]').value = '';
+                         form.querySelector('[name="api_key"]').placeholder = "已配置 (输入新值以覆盖)";
+                    }
+                } else {
+                    showToast('保存失败: ' + result.message, 'danger');
+                }
+            } catch (error) {
+                showToast('保存失败: ' + error.message, 'danger');
+            }
+        }
+
+        async function testConnection(type) {
+            const form = document.getElementById(type + '-form');
+            const formData = new FormData(form);
+            
+            const payload = {
+                config_type: type,
+                api_base: formData.get('api_base'),
+                model_name: formData.get('model_name'),
+                api_key: formData.get('api_key')
+            };
+            
+            const btn = form.querySelector('button[onclick*="testConnection"]');
+            const originalText = btn.textContent;
+            btn.textContent = '测试中...';
+            btn.disabled = true;
+
+            try {
+                const token = getCookie('access_token');
+                const response = await fetch('/api/llm-config/test', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (result.status === 'success') {
+                    showToast('连接成功! 响应: ' + result.response, 'success');
+                } else {
+                    showToast('连接失败: ' + result.message, 'danger');
+                }
+            } catch (error) {
+                showToast('连接失败: ' + error.message, 'danger');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function togglePassword(btn) {
+            const input = btn.previousElementSibling;
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.innerHTML = '<i class="bi bi-eye-slash"></i>';
+            } else {
+                input.type = 'password';
+                btn.innerHTML = '<i class="bi bi-eye"></i>';
+            }
+        }
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toast-container');
+            const toastEl = document.createElement('div');
+            toastEl.className = `toast align-items-center text-white bg-${type} border-0`;
+            toastEl.setAttribute('role', 'alert');
+            toastEl.setAttribute('aria-live', 'assertive');
+            toastEl.setAttribute('aria-atomic', 'true');
+            
+            toastEl.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            `;
+            
+            toastContainer.appendChild(toastEl);
+            const toast = new bootstrap.Toast(toastEl);
+            toast.show();
+            
+            toastEl.addEventListener('hidden.bs.toast', () => {
+                toastEl.remove();
+            });
+        }
+    </script>
+</body>
+</html>

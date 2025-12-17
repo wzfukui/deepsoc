@@ -5,31 +5,69 @@ import yaml
 import logging
 from dotenv import load_dotenv
 from openai import OpenAI
-from app.models.models import db, LLMRecord
+from app.models.models import db, LLMRecord, LLMConfig
 
 # 加载环境变量
 load_dotenv()
 
-# 大模型配置
+# 大模型配置 (默认/回退)
 LLM_BASE_URL = os.getenv('LLM_BASE_URL', 'https://api.openai.com/v1')
 LLM_API_KEY = os.getenv('LLM_API_KEY')
 LLM_MODEL = os.getenv('LLM_MODEL', 'gpt-4o-mini')
 LLM_MODEL_LONG_TEXT = os.getenv('LLM_MODEL_LONG_TEXT', 'qwen-long')
 LLM_TEMPERATURE = float(os.getenv('LLM_TEMPERATURE', 0.6))
 
-# 全局客户端实例
-_client = None
+# 全局客户端实例缓存
+# Key: config_type ('reasoning' or 'summary')
+_clients = {}
 
-def get_client():
-    global _client
-    if _client is None:
-        if not LLM_API_KEY:
-            raise ValueError("LLM_API_KEY环境变量未设置")
-        _client = OpenAI(
-            api_key=LLM_API_KEY,
-            base_url=LLM_BASE_URL
-        )
-    return _client
+def get_client(config_type='reasoning'):
+    """
+    获取LLM客户端。
+    优先从数据库读取配置，如果不存在或未激活，则回退到环境变量。
+    
+    Args:
+        config_type: 'reasoning' 或 'summary'
+    """
+    global _clients
+    
+    # 尝试从数据库获取配置
+    try:
+        # 在应用上下文中才能查询数据库
+        # 注意：如果是在应用启动阶段可能没有上下文，这里假设调用都在请求/任务中
+        config = LLMConfig.query.filter_by(config_type=config_type, is_active=True).first()
+        
+        if config and config.api_key:
+            # 使用数据库配置
+            # 简单的缓存策略：如果配置没变，复用客户端（这里暂不实现复杂缓存失效逻辑，每次创建开销不大）
+            # 或者每次都新建以确保配置最新
+            
+            # 为了支持Azure等其他类型，这里预留扩展，目前主要支持OpenAI兼容接口
+            client = OpenAI(
+                api_key=config.api_key,
+                base_url=config.api_base
+            )
+            return client, config.model_name
+            
+    except Exception as e:
+        logging.warning(f"读取数据库LLM配置失败({config_type}): {e}，回退到环境变量")
+
+    # 回退到环境变量
+    # 检查是否有缓存
+    # if config_type in _clients: return _clients[config_type]
+
+    if not LLM_API_KEY:
+        raise ValueError("LLM_API_KEY环境变量未设置且无数据库配置")
+        
+    client = OpenAI(
+        api_key=LLM_API_KEY,
+        base_url=LLM_BASE_URL
+    )
+    
+    # 根据类型返回默认模型名
+    model_name = LLM_MODEL_LONG_TEXT if config_type == 'summary' else LLM_MODEL
+    
+    return client, model_name
 
 def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_text=False, 
              stream=False, json_mode=False, tools=None, tool_choice=None, **kwargs):
@@ -40,7 +78,7 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
         user_prompt: 用户提示词
         history: 历史对话记录，格式为[{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
         temperature: 温度参数，控制随机性
-        long_text: 是否使用长文本模型
+        long_text: 是否使用长文本模型 (对应 'summary' 配置)
         stream: 是否使用流式输出
         json_mode: 是否强制JSON格式输出
         tools: OpenAI格式的工具定义列表
@@ -53,8 +91,15 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
            - 如果 tools 不为 None，返回 OpenAI ChatCompletionMessage 对象 (包含 content 和 tool_calls)
         如果stream=True，返回生成器，生成每个chunk的内容 (不支持 tools)
     """
-    client = get_client()
-    model = LLM_MODEL_LONG_TEXT if long_text else LLM_MODEL
+    # 确定配置类型
+    config_type = 'summary' if long_text else 'reasoning'
+    
+    # 获取客户端和模型名
+    client, model_name = get_client(config_type)
+    
+    # 如果调用方强制指定了 model 参数，则覆盖自动获取的
+    if 'model' in kwargs:
+        model_name = kwargs.pop('model')
     
     # 构建消息列表
     messages = [{"role": "system", "content": system_prompt}]
@@ -69,11 +114,12 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
         messages.append({"role": "user", "content": user_prompt})
     
     # 设置温度参数
+    # 如果参数没传，尝试从数据库配置获取（get_client目前没返回temp，后续可优化），或者用默认
     temp = temperature if temperature is not None else LLM_TEMPERATURE
     
     # 构建API参数
     api_params = {
-        "model": model,
+        "model": model_name,
         "messages": messages,
         "temperature": temp,
         "stream": stream,
@@ -96,12 +142,12 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
         if stream:
             if tools:
                  logging.warning("Stream mode is not fully supported with tools in this implementation yet.")
-            return _handle_stream_response(response, model, messages, api_params)
+            return _handle_stream_response(response, model_name, messages, api_params)
         else:
-            return _handle_normal_response(response, model, messages, api_params, tools_enabled=(tools is not None))
+            return _handle_normal_response(response, model_name, messages, api_params, tools_enabled=(tools is not None))
             
     except Exception as e:
-        logging.error(f"调用LLM失败: {e}")
+        logging.error(f"调用LLM失败(config={config_type}, model={model_name}): {e}")
         raise e
 
 def _handle_normal_response(response, model, messages, api_params, tools_enabled=False):
@@ -126,7 +172,7 @@ def _handle_normal_response(response, model, messages, api_params, tools_enabled
         # 记录到数据库
         _save_llm_record(
             request_id=response.id,
-            model_name=response.model,
+            model_name=model, # 使用传入的 model 参数，确保记录准确
             messages=messages,
             response_content=content,
             response_full=response.model_dump(),
