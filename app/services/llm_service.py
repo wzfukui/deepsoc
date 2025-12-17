@@ -1,8 +1,8 @@
 import os
 import json
-import requests
 import yaml
 from dotenv import load_dotenv
+from openai import OpenAI, APIError
 from app.models.models import db, LLMRecord
 
 # 加载环境变量
@@ -15,6 +15,17 @@ LLM_MODEL = os.getenv('LLM_MODEL', 'gpt-4o-mini')
 LLM_MODEL_LONG_TEXT = os.getenv('LLM_MODEL_LONG_TEXT', 'qwen-long')
 LLM_TEMPERATURE = float(os.getenv('LLM_TEMPERATURE', 0.6))
 
+# 初始化 OpenAI 客户端
+client = None
+if LLM_API_KEY:
+    try:
+        client = OpenAI(
+            api_key=LLM_API_KEY,
+            base_url=LLM_BASE_URL
+        )
+    except Exception as e:
+        print(f"Warning: Failed to initialize OpenAI client: {e}")
+
 def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_text=False):
     """调用大模型API
     
@@ -23,12 +34,14 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
         user_prompt: 用户提示词
         history: 历史对话记录，格式为[{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
         temperature: 温度参数，控制随机性
+        long_text: 是否使用长文本模型
         
     Returns:
         大模型返回的文本
     """
-    if not LLM_API_KEY:
-        raise ValueError("LLM_API_KEY环境变量未设置")
+    if not client:
+        raise ValueError("OpenAI Client未初始化，请检查LLM_API_KEY")
+        
     model = LLM_MODEL_LONG_TEXT if long_text else LLM_MODEL
     
     # 构建消息列表
@@ -44,69 +57,116 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
     # 设置温度参数
     temp = temperature if temperature is not None else LLM_TEMPERATURE
     
-    # 构建请求数据
-    data = {
-        "model": model,
-        "messages": messages,
-        "temperature": temp
-    }
-    
-    # 发送请求
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {LLM_API_KEY}"
-    }
-    
-    response = requests.post(
-        f"{LLM_BASE_URL}/chat/completions",
-        headers=headers,
-        json=data
-    )
-    
-    # 检查响应
-    if response.status_code != 200:
-        raise Exception(f"API请求失败: {response.status_code} - {response.text}")
-    
-    # 解析响应
-    result = response.json()
-    
-    # 记录请求和响应
     try:
-        # 提取响应内容
-        response_content = result["choices"][0]["message"]["content"]
-        
-        # 提取usage信息
-        usage = result.get("usage", {})
-        prompt_tokens = usage.get("prompt_tokens", None)
-        completion_tokens = usage.get("completion_tokens", None)
-        total_tokens = usage.get("total_tokens", None)
-        
-        # 提取缓存token信息
-        cached_tokens = None
-        if usage.get("prompt_tokens_details"):
-            cached_tokens = usage["prompt_tokens_details"].get("cached_tokens", None)
-        
-        # 创建记录
-        llm_record = LLMRecord(
-            request_id=result.get("id"),
-            model_name=result.get("model", model),
-            request_messages=messages,
-            response_content=response_content,
-            response_full=result,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=total_tokens,
-            cached_tokens=cached_tokens
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temp
         )
         
-        # 保存到数据库
-        db.session.add(llm_record)
-        db.session.commit()
-    except Exception as e:
-        print(f"记录LLM请求失败: {e}")
-        # 记录失败不影响主流程，继续返回结果
+        # 提取响应内容
+        response_content = response.choices[0].message.content
+        
+        # 记录请求和响应
+        try:
+            # 提取usage信息
+            usage = response.usage
+            prompt_tokens = usage.prompt_tokens
+            completion_tokens = usage.completion_tokens
+            total_tokens = usage.total_tokens
+            
+            # 提取缓存token信息 (OpenAI SDK specific structure)
+            cached_tokens = None
+            if hasattr(usage, 'prompt_tokens_details') and usage.prompt_tokens_details:
+                cached_tokens = getattr(usage.prompt_tokens_details, 'cached_tokens', None)
+            
+            # 创建记录
+            llm_record = LLMRecord(
+                request_id=response.id,
+                model_name=response.model,
+                request_messages=messages,
+                response_content=response_content,
+                response_full=response.model_dump(),
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                cached_tokens=cached_tokens
+            )
+            
+            # 保存到数据库
+            db.session.add(llm_record)
+            db.session.commit()
+        except Exception as e:
+            print(f"记录LLM请求失败: {e}")
+            # 记录失败不影响主流程
+            
+        return response_content
+
+    except APIError as e:
+        raise Exception(f"API请求失败: {e}")
+
+def call_llm_structured(system_prompt, user_prompt, response_format, history=None, temperature=None, long_text=False):
+    """调用大模型API并返回结构化数据
     
-    return result["choices"][0]["message"]["content"]
+    Args:
+        response_format: Pydantic模型类 或 JSON Schema dict
+    """
+    if not client:
+        raise ValueError("OpenAI Client未初始化，请检查LLM_API_KEY")
+
+    model = LLM_MODEL_LONG_TEXT if long_text else LLM_MODEL
+    messages = [{"role": "system", "content": system_prompt}]
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": user_prompt})
+    temp = temperature if temperature is not None else LLM_TEMPERATURE
+
+    try:
+        # Check if response_format is a Pydantic model (class)
+        if isinstance(response_format, type):
+             completion = client.beta.chat.completions.parse(
+                model=model,
+                messages=messages,
+                temperature=temp,
+                response_format=response_format,
+            )
+             parsed_obj = completion.choices[0].message.parsed
+             response_content = completion.choices[0].message.content # Raw content
+             response_full = completion.model_dump()
+        else:
+            # Fallback for dict/JSON schema
+            completion = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temp,
+                response_format=response_format
+            )
+            response_content = completion.choices[0].message.content
+            parsed_obj = json.loads(response_content)
+            response_full = completion.model_dump()
+
+        # Logging logic (duplicated for now, can be refactored)
+        try:
+            usage = completion.usage
+            llm_record = LLMRecord(
+                request_id=completion.id,
+                model_name=completion.model,
+                request_messages=messages,
+                response_content=response_content,
+                response_full=response_full,
+                prompt_tokens=usage.prompt_tokens,
+                completion_tokens=usage.completion_tokens,
+                total_tokens=usage.total_tokens
+            )
+            db.session.add(llm_record)
+            db.session.commit()
+        except Exception as e:
+            print(f"记录LLM请求失败: {e}")
+
+        return parsed_obj
+
+    except Exception as e:
+         raise Exception(f"Structured API request failed: {e}")
 
 def parse_yaml_response(response_text):
     """解析YAML格式的大模型响应
@@ -139,4 +199,4 @@ def parse_yaml_response(response_text):
     except Exception as e:
         print(f"YAML解析错误: {e}")
         print(f"原始响应: {response_text}")
-        return None 
+        return None

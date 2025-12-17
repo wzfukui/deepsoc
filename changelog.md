@@ -2,6 +2,16 @@
 
 ## [未发布]
 
+## [1.9.0] - 2025-12-17 - 核心架构升级与现代化
+
+### 架构优化
+- **LLM 服务现代化**: 全面重构 `app/services/llm_service.py`，移除 `requests` 调用，迁移至官方 `openai` Python SDK。
+- **结构化输出支持**: 新增 `call_llm_structured` 方法，支持传入 Pydantic 模型或 JSON Schema，从根本上解决 YAML 解析脆弱的问题，为后续 Agent 逻辑迁移打下基础。
+- **依赖升级**: 升级 `openai`, `sqlalchemy`, `flask`, `pydantic` 等核心依赖至最新版本，确保安全性和性能。
+
+### 文档
+- 新增 `docs/Project_Review_2025.md`: 包含完整的项目架构审查报告、行业趋势对比及后续优化路线图。
+
 ## [1.8.3] - 2025-07-07 - 优化README文档&工程师AI助手功能优化
 
 ### 优化README
