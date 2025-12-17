@@ -17,6 +17,7 @@ from app.utils.logging_config import configure_logging
 from app.models.models import Prompt, User
 from app.prompts.default_prompts import DEFAULT_PROMPTS
 from app.utils.mq_consumer import RabbitMQConsumer # Added MQ Consumer
+from app.mcp.client_manager import mcp_manager # MCP Client Manager
 from app import __version__, get_version, get_version_info
 import sys
 
@@ -413,6 +414,13 @@ def start_agent(role):
         logger.error(f"未知角色: {role}")
         sys.exit(1)
 
+def sync_mcp_tools():
+    """Sync all MCP tools on startup"""
+    try:
+        mcp_manager.sync_all_servers(app)
+    except Exception as e:
+        logger.error(f"MCP Sync Failed: {e}")
+
 if __name__ == '__main__':
     # 显示版本信息
     print_version_info()
@@ -482,6 +490,9 @@ if __name__ == '__main__':
         # 端口可用后再启动RabbitMQ consumer
         start_rabbitmq_consumer()
         
+        # 启动时同步 MCP
+        sync_mcp_tools()
+        
         # 启动Web服务器
         try:
             socketio.run(
@@ -495,4 +506,4 @@ if __name__ == '__main__':
         except Exception as e:
             logger.error(f"Failed to start web server: {e}")
             stop_rabbitmq_consumer()
-            sys.exit(1) 
+            sys.exit(1)

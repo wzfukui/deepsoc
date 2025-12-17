@@ -1,1 +1,1 @@
-from .client_manager import MCPManager
+from .client_manager import mcp_manager

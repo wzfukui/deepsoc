@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.models import db, MCPServer, MCPTool
-from app.mcp import MCPManager
+from app.mcp import mcp_manager
 import uuid
 
 mcp_bp = Blueprint('mcp', __name__)
@@ -85,7 +85,11 @@ def sync_server(server_id):
     """测试连接并同步工具"""
     server = MCPServer.query.get_or_404(server_id)
     
-    success = MCPManager.sync_server_tools_sync(server_id)
+    try:
+        mcp_manager.sync_server(server)
+        success = True
+    except Exception as e:
+        success = False
     
     if success:
         server = MCPServer.query.get(server_id) # Reload
