@@ -242,6 +242,33 @@ def login_required(f):
 def index():
     return render_template('index.html')
 
+@app.route('/admin')
+@login_required
+def admin_dashboard():
+    """管理后台入口"""
+    # 获取当前用户身份以检查权限
+    token = None
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        token = auth_header.split(' ')[1]
+    if not token:
+        token = request.cookies.get('access_token')
+        
+    if token:
+        try:
+            jwt_data = decode_token(token)
+            username = jwt_data['sub']
+            user = User.query.filter_by(username=username).first()
+            if not user or user.role != 'admin':
+                return redirect(url_for('index'))
+            
+            return render_template('admin_dashboard.html', version_info=get_version_info())
+        except Exception as e:
+            logger.error(f"Admin dashboard auth error: {e}")
+            pass
+            
+    return redirect(url_for('login'))
+
 @app.route('/login')
 def login():
     return render_template('login.html')

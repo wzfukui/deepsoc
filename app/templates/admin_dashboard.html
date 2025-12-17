@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - DeepSOC</title>
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="dark-theme">
+    <div class="admin-wrapper">
+        {% set active_page = 'dashboard' %}
+        {% include 'includes/admin_sidebar.html' %}
+        
+        <main class="admin-content">
+            <header class="admin-header">
+                <h4 class="m-0">系统概览</h4>
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-success me-2">系统正常</span>
+                    <span class="text-muted small">v{{ version_info.version if version_info else '1.1.0' }}</span>
+                </div>
+            </header>
+            
+            <div class="admin-main">
+                <div class="row g-4">
+                    <div class="col-md-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="card-subtitle mb-2 text-muted">总用户数</h6>
+                                <h2 class="card-title mb-0" id="stat-users">-</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="card-subtitle mb-2 text-muted">活跃 Agent</h6>
+                                <h2 class="card-title mb-0">5</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="card-subtitle mb-2 text-muted">MCP 工具数</h6>
+                                <h2 class="card-title mb-0" id="stat-tools">-</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="card-subtitle mb-2 text-muted">系统负载</h6>
+                                <h2 class="card-title mb-0">正常</h2>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">快速操作</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <a href="/settings/llm" class="btn btn-outline-primary w-100 p-3 text-start">
+                                            <i class="bi bi-cpu fs-4 mb-2 d-block"></i>
+                                            配置大模型参数
+                                            <div class="small text-muted mt-1">设置 Reasoning 和 Summary 模型</div>
+                                        </a>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <a href="/settings/mcp-tools" class="btn btn-outline-info w-100 p-3 text-start">
+                                            <i class="bi bi-tools fs-4 mb-2 d-block"></i>
+                                            管理 MCP 工具
+                                            <div class="small text-muted mt-1">添加或配置外部工具集</div>
+                                        </a>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <a href="/user-management" class="btn btn-outline-warning w-100 p-3 text-start">
+                                            <i class="bi bi-person-plus fs-4 mb-2 d-block"></i>
+                                            添加新用户
+                                            <div class="small text-muted mt-1">管理团队成员权限</div>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 简单的统计数据加载
+        fetch('/api/user/list', {
+            headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
+        }).then(r => r.json()).then(d => {
+            if(d.status === 'success') {
+                document.getElementById('stat-users').innerText = d.data.length;
+            }
+        }).catch(e => console.log(e));
+
+        fetch('/api/mcp/tools').then(r => r.json()).then(d => {
+            if(d.status === 'success') {
+                document.getElementById('stat-tools').innerText = d.data.length;
+            }
+        }).catch(e => console.log(e));
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<nav class="admin-sidebar">
+    <div class="admin-sidebar-header">
+        <i class="bi bi-shield-lock-fill me-2"></i> DeepSOC Admin
+    </div>
+    <ul class="admin-sidebar-menu">
+        <li>
+            <a href="/admin" class="{{ 'active' if active_page == 'dashboard' else '' }}">
+                <i class="bi bi-speedometer2"></i> 仪表盘
+            </a>
+        </li>
+        <li>
+            <a href="/settings/llm" class="{{ 'active' if active_page == 'llm' else '' }}">
+                <i class="bi bi-cpu"></i> 模型设置
+            </a>
+        </li>
+        <li>
+            <a href="/settings/mcp-tools" class="{{ 'active' if active_page == 'mcp' else '' }}">
+                <i class="bi bi-tools"></i> MCP 工具
+            </a>
+        </li>
+        <li>
+            <a href="/settings/prompts" class="{{ 'active' if active_page == 'prompts' else '' }}">
+                <i class="bi bi-chat-quote"></i> 提示词管理
+            </a>
+        </li>
+        <li>
+            <a href="/settings/background-security" class="{{ 'active' if active_page == 'background' else '' }}">
+                <i class="bi bi-file-earmark-lock"></i> 安全背景
+            </a>
+        </li>
+        <li>
+            <a href="/user-management" class="{{ 'active' if active_page == 'users' else '' }}">
+                <i class="bi bi-people"></i> 用户管理
+            </a>
+        </li>
+    </ul>
+    <div class="admin-sidebar-footer">
+        <div class="d-grid gap-2">
+            <a href="/" class="btn btn-outline-secondary btn-sm text-start">
+                <i class="bi bi-house-door me-2"></i> 返回运营中心
+            </a>
+            <button class="btn btn-outline-danger btn-sm text-start" id="admin-logout-btn">
+                <i class="bi bi-box-arrow-right me-2"></i> 退出登录
+            </button>
+        </div>
+    </div>
+</nav>
+
+<script>
+    document.getElementById('admin-logout-btn').addEventListener('click', function(e) {
+        e.preventDefault();
+        document.cookie = 'access_token=; Max-Age=0; path=/;';
+        window.location.href = '/login'; 
+    });
+</script>

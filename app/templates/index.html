@@ -3,135 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DeepSOC - AI驱动的安全运营中心</title>
+    <title>DeepSOC - 安全运营中心</title>
     <link rel="stylesheet" href="/static/css/bootstrap.min.css">
     <link rel="stylesheet" href="/static/css/bootstrap-icons.css">
     <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        body {
+            background-color: #f0f2f5;
+        }
+        .navbar {
+            background-color: #1a1d21 !important;
+        }
+        .bento-card {
+            background: #fff;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        /* 调整 Bento 布局适配首页内容 */
+        .bento-grid {
+            grid-template-columns: repeat(12, 1fr);
+            grid-template-rows: auto auto;
+            gap: 1.5rem;
+        }
+        .card-create-event {
+            grid-column: span 4;
+            grid-row: span 2;
+        }
+        .card-event-list {
+            grid-column: span 8;
+            grid-row: span 2;
+        }
+        @media (max-width: 992px) {
+            .card-create-event, .card-event-list {
+                grid-column: span 12;
+            }
+        }
+    </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-        <div class="container">
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container-fluid px-4">
             <a class="navbar-brand d-flex align-items-center" href="/">
                 <img src="/static/images/logo/logo.png" alt="DeepSOC Logo" height="30" class="me-2">
-                DeepSOC
+                DeepSOC <span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">v<span id="version-info">1.1.0</span></span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/">首页</a>
-                    </li>
-                    <li class="nav-item d-none" id="user-management-nav-item">
-                        <a class="nav-link" href="/user-management">用户管理</a>
-                    </li>
-                    <li class="nav-item dropdown d-none" id="settings-nav-item">
-                        <a class="nav-link dropdown-toggle" href="#" id="settings-dropdown" role="button" data-bs-toggle="dropdown">设置</a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="/settings/prompts">提示词管理</a></li>
-                            <li><a class="dropdown-item" href="/settings/background-security">安全背景</a></li>
-                            <li><a class="dropdown-item" href="/settings/soar-playbooks">SOAR剧本</a></li>
-                            <li><a class="dropdown-item" href="/settings/llm">模型设置</a></li>
-                            <li><a class="dropdown-item" href="/settings/mcp-tools">MCP Tools</a></li>
-                        </ul>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    <!-- 登录前显示 -->
-                    <li class="nav-item" id="login-nav-item">
-                        <a class="nav-link" href="/login">登录</a>
-                    </li>
+            
+            <div class="d-flex align-items-center">
+                <!-- 登录前显示 -->
+                <a href="/login" class="btn btn-primary btn-sm" id="login-nav-item">登录</a>
+
+                <!-- 登录后显示 -->
+                <div class="d-none d-flex align-items-center" id="auth-section">
+                    <a href="/admin" id="admin-link" class="btn btn-outline-light btn-sm me-3 d-none">
+                        <i class="bi bi-speedometer2 me-1"></i> 管理后台
+                    </a>
                     
-                    <!-- 登录后显示 -->
-                    <li class="nav-item dropdown d-none" id="user-nav-item">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                    <div class="dropdown" id="user-nav-item">
+                        <a class="nav-link dropdown-toggle text-light" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle me-1"></i>
                             <span id="user-info">用户</span>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="/change-password">修改密码</a></li>
-                            <li><a class="dropdown-item" href="#" id="logout-btn">退出登录</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="#" id="logout-btn">退出登录</a></li>
                         </ul>
-                    </li>
-                </ul>
+                    </div>
+                </div>
             </div>
         </div>
     </nav>
 
-    <div class="container">
-        <header class="mb-4">
-            <div class="text-center">
-                <h1>DeepSOC</h1>
-                <p class="text-muted">AI驱动的安全运营中心</p>
+    <div class="bento-container">
+        <div class="bento-header">
+            <div>
+                <h2 class="mb-1">安全运营中心</h2>
+                <p class="text-muted mb-0">Security Operations Center Dashboard</p>
             </div>
-        </header>
+            <div id="connection-status">
+                <span class="badge bg-success rounded-pill"><i class="bi bi-wifi"></i> 系统在线</span>
+            </div>
+        </div>
 
-        <div class="row">
-            <div class="col-md-4">
-                <!-- 登录前显示 -->
-                <div class="card mb-4 d-none" id="login-prompt">
-                    <div class="card-header">
-                        <h5>创建安全事件</h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="text-center">请先登录后使用完整功能</p>
-                        <div class="d-grid gap-2">
-                            <a href="/login" class="btn btn-primary">登录</a>
-                        </div>
-                    </div>
+        <div class="bento-grid">
+            <!-- 左侧：创建事件 -->
+            <div class="bento-card card-create-event">
+                <!-- 登录前提示 -->
+                <div class="d-none h-100 d-flex flex-column justify-content-center align-items-center text-center p-4" id="login-prompt">
+                    <i class="bi bi-shield-lock display-1 text-muted mb-3"></i>
+                    <h4>需要身份验证</h4>
+                    <p class="text-muted">请登录以访问安全运营中心功能</p>
+                    <a href="/login" class="btn btn-primary mt-3 px-4">立即登录</a>
                 </div>
                 
-                <!-- 登录后显示 -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5>创建安全事件</h5>
+                <!-- 登录后表单 -->
+                <div id="create-event-panel">
+                    <div class="bento-card-header">
+                        <h5 class="bento-card-title"><i class="bi bi-plus-circle me-2"></i>创建安全事件</h5>
                     </div>
-                    <div class="card-body">
-                        <form id="event-form">
-                            <div class="mb-3">
-                                <label for="event-name" class="form-label">事件名称 (可选)</label>
-                                <input type="text" class="form-control" id="event-name" placeholder="如未提供，系统将自动生成">
-                            </div>
-                            <div class="mb-3">
-                                <label for="event-message" class="form-label">事件描述 *</label>
-                                <textarea class="form-control required-field" id="event-message" rows="4" required placeholder="例如：检测到外部IP 66.240.205.34 正在暴力破解邮件网关服务器，对应内网IP地址是192.168.22.251"></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label for="event-context" class="form-label">事件上下文 (可选)</label>
-                                <textarea class="form-control" id="event-context" rows="2" placeholder="提供更多背景信息"></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label for="event-severity" class="form-label">严重程度</label>
-                                <select class="form-select" id="event-severity">
-                                    <option value="low">低</option>
-                                    <option value="medium" selected>中</option>
-                                    <option value="high">高</option>
+                    <form id="event-form">
+                        <div class="mb-3">
+                            <label for="event-name" class="form-label text-muted small">事件名称</label>
+                            <input type="text" class="form-control bg-light border-0" id="event-name" placeholder="自动生成...">
+                        </div>
+                        <div class="mb-3">
+                            <label for="event-message" class="form-label text-muted small">事件描述 *</label>
+                            <textarea class="form-control required-field bg-light border-0" id="event-message" rows="5" required placeholder="描述安全事件的详细情况..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="event-context" class="form-label text-muted small">上下文信息</label>
+                            <textarea class="form-control bg-light border-0" id="event-context" rows="2" placeholder="相关IP、日志等上下文..."></textarea>
+                        </div>
+                        <div class="row mb-4">
+                            <div class="col-6">
+                                <label for="event-severity" class="form-label text-muted small">严重程度</label>
+                                <select class="form-select bg-light border-0" id="event-severity">
+                                    <option value="low">低危</option>
+                                    <option value="medium" selected>中危</option>
+                                    <option value="high">高危</option>
                                 </select>
                             </div>
-                            <div class="mb-3">
-                                <label for="event-source" class="form-label">事件来源 (可选)</label>
-                                <input type="text" class="form-control" id="event-source" value="manual" placeholder="例如：SIEM, EDR, 人工报告">
+                            <div class="col-6">
+                                <label for="event-source" class="form-label text-muted small">来源</label>
+                                <input type="text" class="form-control bg-light border-0" id="event-source" value="manual">
                             </div>
-                            <button type="submit" class="btn btn-primary w-100">创建事件</button>
-                        </form>
-                    </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 py-2">
+                            <i class="bi bi-lightning-charge me-2"></i>立即响应
+                        </button>
+                    </form>
                 </div>
             </div>
             
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5>安全事件列表</h5>
-                        <button id="refresh-events" class="btn btn-sm btn-outline-secondary">刷新</button>
-                    </div>
-                    <div class="card-body">
-                        <div id="events-container">
-                            <div class="text-center py-5">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">加载中...</span>
-                                </div>
-                                <p class="mt-2">加载事件列表...</p>
+            <!-- 右侧：事件列表 -->
+            <div class="bento-card card-event-list">
+                <div class="bento-card-header">
+                    <h5 class="bento-card-title"><i class="bi bi-list-task me-2"></i>当前事件队列</h5>
+                    <button id="refresh-events" class="btn btn-sm btn-light rounded-circle" title="刷新">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div class="flex-grow-1 overflow-auto" style="min-height: 400px; max-height: 600px;">
+                    <div id="events-container">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
                             </div>
+                            <p class="mt-2 text-muted">正在同步安全事件...</p>
                         </div>
                     </div>
                 </div>
@@ -142,30 +160,54 @@
     <!-- Toast容器 -->
     <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
 
-    <!-- 版本信息 -->
-    <footer class="bg-light text-center py-3 mt-5">
-        <div class="container">
-            <small class="text-muted">
-                DeepSOC <span id="version-info">v1.1.0</span> | AI-Powered Security Operations Center
-            </small>
-        </div>
-    </footer>
-
     <script src="/static/js/bootstrap.bundle.min.js"></script>
     <script src="/static/js/index.js"></script>
     
-    <!-- 加载版本信息 -->
+    <!-- 内联脚本处理 Admin 链接显示 -->
     <script>
+        // 获取版本信息
         fetch('/api/version')
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    document.getElementById('version-info').textContent = `v${data.data.version}`;
+                    document.getElementById('version-info').textContent = data.data.version;
                 }
             })
-            .catch(error => {
-                console.log('无法获取版本信息:', error);
-            });
+            .catch(console.error);
+
+        // 增强的 Auth 检查（配合 index.js 使用）
+        function checkAdminRole() {
+            const token = getCookie('access_token');
+            if(token) {
+                // 显示 auth section
+                document.getElementById('auth-section').classList.remove('d-none');
+                document.getElementById('login-nav-item').classList.add('d-none');
+                document.getElementById('login-prompt').classList.add('d-none');
+                
+                // 获取用户信息判断是否显示 Admin Link
+                fetch('/api/auth/me', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success' && data.user.role === 'admin') {
+                        document.getElementById('admin-link').classList.remove('d-none');
+                    }
+                })
+                .catch(console.error);
+            } else {
+                document.getElementById('create-event-panel').classList.add('d-none');
+                document.getElementById('login-prompt').classList.remove('d-none');
+            }
+        }
+        
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        document.addEventListener('DOMContentLoaded', checkAdminRole);
     </script>
 </body>
-</html> 
+</html>

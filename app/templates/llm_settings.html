@@ -3,151 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>模型设置 - DeepSOC</title>
+    <title>模型设置 - DeepSOC Admin</title>
     <link rel="stylesheet" href="/static/css/bootstrap.min.css">
     <link rel="stylesheet" href="/static/css/bootstrap-icons.css">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
-<body>
-    <!-- 导航栏 -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center" href="/">
-                <img src="/static/images/logo/logo.png" alt="DeepSOC Logo" height="30" class="me-2">
-                DeepSOC
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/">首页</a>
-                    </li>
-                    <li class="nav-item d-none" id="user-management-nav-item">
-                        <a class="nav-link" href="/user-management">用户管理</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle active" href="#" id="settings-dropdown" role="button" data-bs-toggle="dropdown">设置</a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="/settings/prompts">提示词管理</a></li>
-                            <li><a class="dropdown-item" href="/settings/background-security">安全背景</a></li>
-                            <li><a class="dropdown-item active" href="/settings/llm">模型设置</a></li>
-                            <li><a class="dropdown-item" href="/settings/mcp-tools">MCP Tools</a></li>
-                        </ul>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item dropdown d-none" id="user-nav-item">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <span id="user-info">用户</span>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="/change-password">修改密码</a></li>
-                            <li><a class="dropdown-item" href="#" id="logout-btn">退出登录</a></li>
-                        </ul>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container">
-        <header class="mb-4 d-flex justify-content-between align-items-center">
-            <h3>大模型参数配置</h3>
-        </header>
-
-        <div class="row">
-            <!-- 推理模型配置 -->
-            <div class="col-md-6">
-                <div class="card mb-4">
-                    <div class="card-header bg-light">
-                        <h5 class="mb-0">推理模型 (Reasoning)</h5>
-                        <small class="text-muted">用于安全事件分析与决策</small>
-                    </div>
-                    <div class="card-body">
-                        <form id="reasoning-form">
-                            <input type="hidden" name="config_type" value="reasoning">
-                            <div class="mb-3">
-                                <label class="form-label">API Base URL</label>
-                                <input type="text" class="form-control" name="api_base" placeholder="https://api.openai.com/v1">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">API Key</label>
-                                <div class="input-group">
-                                    <input type="password" class="form-control" name="api_key" placeholder="sk-...">
-                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this)">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
+<body class="dark-theme">
+    <div class="admin-wrapper">
+        {% set active_page = 'llm' %}
+        {% include 'includes/admin_sidebar.html' %}
+        
+        <main class="admin-content">
+            <header class="admin-header">
+                <h4 class="m-0">大模型参数配置</h4>
+            </header>
+            
+            <div class="admin-main">
+                <div class="row">
+                    <!-- 推理模型配置 -->
+                    <div class="col-md-6">
+                        <div class="card mb-4 h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-0"><i class="bi bi-robot me-2"></i>推理模型 (Reasoning)</h5>
+                                    <small class="text-muted">用于安全事件分析与决策</small>
                                 </div>
-                                <div class="form-text">留空则不修改。如果未配置，将使用系统环境变量。</div>
+                                <span class="badge bg-primary">Core</span>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Model Name</label>
-                                <input type="text" class="form-control" name="model_name" placeholder="gpt-4o-mini">
+                            <div class="card-body">
+                                <form id="reasoning-form">
+                                    <input type="hidden" name="config_type" value="reasoning">
+                                    <div class="mb-3">
+                                        <label class="form-label">API Base URL</label>
+                                        <input type="text" class="form-control" name="api_base" placeholder="https://api.openai.com/v1">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">API Key</label>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" name="api_key" placeholder="sk-...">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this)">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                        <div class="form-text">留空则不修改。如果未配置，将使用系统环境变量。</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Model Name</label>
+                                        <input type="text" class="form-control" name="model_name" placeholder="gpt-4o-mini">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Temperature</label>
+                                        <input type="number" step="0.1" min="0" max="2" class="form-control" name="temperature" value="0.7">
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="is_active" checked>
+                                        <label class="form-check-label">启用此配置</label>
+                                    </div>
+                                    <div class="d-flex justify-content-between mt-4">
+                                        <button type="button" class="btn btn-outline-light" onclick="testConnection('reasoning')">测试连接</button>
+                                        <button type="submit" class="btn btn-primary px-4">保存配置</button>
+                                    </div>
+                                </form>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Temperature</label>
-                                <input type="number" step="0.1" min="0" max="2" class="form-control" name="temperature" value="0.7">
+                        </div>
+                    </div>
+
+                    <!-- 总结模型配置 -->
+                    <div class="col-md-6">
+                        <div class="card mb-4 h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>总结模型 (Summary)</h5>
+                                    <small class="text-muted">用于长文本归纳与总结</small>
+                                </div>
+                                <span class="badge bg-info text-dark">Helper</span>
                             </div>
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" name="is_active" checked>
-                                <label class="form-check-label">启用此配置</label>
+                            <div class="card-body">
+                                <form id="summary-form">
+                                    <input type="hidden" name="config_type" value="summary">
+                                    <div class="mb-3">
+                                        <label class="form-label">API Base URL</label>
+                                        <input type="text" class="form-control" name="api_base" placeholder="https://api.openai.com/v1">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">API Key</label>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" name="api_key" placeholder="sk-...">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this)">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                        <div class="form-text">留空则不修改。</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Model Name</label>
+                                        <input type="text" class="form-control" name="model_name" placeholder="qwen-long">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Temperature</label>
+                                        <input type="number" step="0.1" min="0" max="2" class="form-control" name="temperature" value="0.5">
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="is_active" checked>
+                                        <label class="form-check-label">启用此配置</label>
+                                    </div>
+                                    <div class="d-flex justify-content-between mt-4">
+                                        <button type="button" class="btn btn-outline-light" onclick="testConnection('summary')">测试连接</button>
+                                        <button type="submit" class="btn btn-primary px-4">保存配置</button>
+                                    </div>
+                                </form>
                             </div>
-                            <div class="d-flex justify-content-between">
-                                <button type="button" class="btn btn-outline-primary" onclick="testConnection('reasoning')">测试连接</button>
-                                <button type="submit" class="btn btn-primary">保存配置</button>
-                            </div>
-                        </form>
+                        </div>
                     </div>
                 </div>
             </div>
-
-            <!-- 总结模型配置 -->
-            <div class="col-md-6">
-                <div class="card mb-4">
-                    <div class="card-header bg-light">
-                        <h5 class="mb-0">总结模型 (Summary)</h5>
-                        <small class="text-muted">用于长文本归纳与总结</small>
-                    </div>
-                    <div class="card-body">
-                        <form id="summary-form">
-                            <input type="hidden" name="config_type" value="summary">
-                            <div class="mb-3">
-                                <label class="form-label">API Base URL</label>
-                                <input type="text" class="form-control" name="api_base" placeholder="https://api.openai.com/v1">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">API Key</label>
-                                <div class="input-group">
-                                    <input type="password" class="form-control" name="api_key" placeholder="sk-...">
-                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this)">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                </div>
-                                <div class="form-text">留空则不修改。</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Model Name</label>
-                                <input type="text" class="form-control" name="model_name" placeholder="qwen-long">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Temperature</label>
-                                <input type="number" step="0.1" min="0" max="2" class="form-control" name="temperature" value="0.5">
-                            </div>
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" name="is_active" checked>
-                                <label class="form-check-label">启用此配置</label>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <button type="button" class="btn btn-outline-primary" onclick="testConnection('summary')">测试连接</button>
-                                <button type="submit" class="btn btn-primary">保存配置</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </main>
     </div>
 
     <!-- Toast容器 -->
@@ -155,61 +125,12 @@
 
     <script src="/static/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 内联JS处理配置加载和保存
+        // 内联JS处理配置加载和保存 (保留原有逻辑，适配新UI)
         document.addEventListener('DOMContentLoaded', function() {
-            // Check auth
-            const token = getCookie('access_token');
-            if (!token) {
-                // Check if user is logged in via cookie in a different way or redirect
-                // But since this page is protected by @login_required in backend, 
-                // if we are here it means session/cookie is valid for browser requests.
-                // However, for fetch calls we need the token.
-                // In this app, it seems token is in 'access_token' cookie.
-            }
-
             loadConfigs();
             
-            // 绑定表单提交
             document.getElementById('reasoning-form').addEventListener('submit', (e) => saveConfig(e, 'reasoning'));
             document.getElementById('summary-form').addEventListener('submit', (e) => saveConfig(e, 'summary'));
-            
-            // 退出登录
-            const logoutBtn = document.getElementById('logout-btn');
-            if(logoutBtn) {
-                logoutBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    document.cookie = 'access_token=; Max-Age=0; path=/;';
-                    window.location.href = '/login'; 
-                });
-            }
-
-            // 获取当前用户信息
-            fetch('/api/auth/me', {
-                headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    const userInfo = document.getElementById('user-info');
-                    if(userInfo) userInfo.textContent = data.user.nickname || data.user.username;
-                    
-                    const userNav = document.getElementById('user-nav-item');
-                    if(userNav) userNav.classList.remove('d-none');
-                    
-                    const userMgmt = document.getElementById('user-management-nav-item');
-                    if(userMgmt) userMgmt.classList.remove('d-none');
-
-                    // Check admin
-                    if (data.user.role !== 'admin') {
-                        alert('只有管理员可以访问此页面');
-                        window.location.href = '/';
-                    }
-                }
-            })
-            .catch(e => {
-                console.error("Auth check failed", e);
-                // Redirect if needed
-            });
         });
 
         async function loadConfigs() {
@@ -235,7 +156,6 @@
             if(data.model_name) form.querySelector('[name="model_name"]').value = data.model_name;
             if(data.temperature) form.querySelector('[name="temperature"]').value = data.temperature;
             form.querySelector('[name="is_active"]').checked = data.is_active;
-            // API Key 不回显，但如果已存在，显示提示
             const keyInput = form.querySelector('[name="api_key"]');
             if (data.has_api_key) {
                 keyInput.placeholder = "已配置 (输入新值以覆盖)";
@@ -268,7 +188,6 @@
                 const result = await response.json();
                 if (result.status === 'success') {
                     showToast('保存成功', 'success');
-                    // 刷新显示
                     if (result.data.has_api_key) {
                          form.querySelector('[name="api_key"]').value = '';
                          form.querySelector('[name="api_key"]').placeholder = "已配置 (输入新值以覆盖)";
@@ -284,14 +203,12 @@
         async function testConnection(type) {
             const form = document.getElementById(type + '-form');
             const formData = new FormData(form);
-            
             const payload = {
                 config_type: type,
                 api_base: formData.get('api_base'),
                 model_name: formData.get('model_name'),
                 api_key: formData.get('api_key')
             };
-            
             const btn = form.querySelector('button[onclick*="testConnection"]');
             const originalText = btn.textContent;
             btn.textContent = '测试中...';
@@ -345,23 +262,15 @@
             toastEl.setAttribute('role', 'alert');
             toastEl.setAttribute('aria-live', 'assertive');
             toastEl.setAttribute('aria-atomic', 'true');
-            
             toastEl.innerHTML = `
                 <div class="d-flex">
-                    <div class="toast-body">
-                        ${message}
-                    </div>
+                    <div class="toast-body">${message}</div>
                     <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                </div>
-            `;
-            
+                </div>`;
             toastContainer.appendChild(toastEl);
             const toast = new bootstrap.Toast(toastEl);
             toast.show();
-            
-            toastEl.addEventListener('hidden.bs.toast', () => {
-                toastEl.remove();
-            });
+            toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
         }
     </script>
 </body>
