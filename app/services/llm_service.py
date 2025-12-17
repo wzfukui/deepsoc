@@ -32,7 +32,7 @@ def get_client():
     return _client
 
 def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_text=False, 
-             stream=False, json_mode=False, **kwargs):
+             stream=False, json_mode=False, tools=None, tool_choice=None, **kwargs):
     """调用大模型API
     
     Args:
@@ -43,11 +43,15 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
         long_text: 是否使用长文本模型
         stream: 是否使用流式输出
         json_mode: 是否强制JSON格式输出
+        tools: OpenAI格式的工具定义列表
+        tool_choice: 工具选择策略 (auto, required, or specific tool)
         **kwargs: 传递给OpenAI API的其他参数
         
     Returns:
-        如果stream=False，返回大模型返回的文本
-        如果stream=True，返回生成器，生成每个chunk的内容
+        如果stream=False:
+           - 如果 tools 为 None，返回文本内容 (str)
+           - 如果 tools 不为 None，返回 OpenAI ChatCompletionMessage 对象 (包含 content 和 tool_calls)
+        如果stream=True，返回生成器，生成每个chunk的内容 (不支持 tools)
     """
     client = get_client()
     model = LLM_MODEL_LONG_TEXT if long_text else LLM_MODEL
@@ -60,7 +64,9 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
         messages.extend(history)
     
     # 添加当前用户提示
-    messages.append({"role": "user", "content": user_prompt})
+    # 如果 user_prompt 为空字符串但 history 存在，OpenAI 可能报错，但这里我们假设调用方会控制
+    if user_prompt:
+        messages.append({"role": "user", "content": user_prompt})
     
     # 设置温度参数
     temp = temperature if temperature is not None else LLM_TEMPERATURE
@@ -73,7 +79,12 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
         "stream": stream,
     }
     
-    if json_mode:
+    if tools:
+        api_params["tools"] = tools
+        if tool_choice:
+            api_params["tool_choice"] = tool_choice
+    
+    if json_mode and not tools: # JSON mode usually not compatible with tools in some contexts or redundant
         api_params["response_format"] = {"type": "json_object"}
         
     # 合并其他参数
@@ -83,22 +94,25 @@ def call_llm(system_prompt, user_prompt, history=None, temperature=None, long_te
         response = client.chat.completions.create(**api_params)
         
         if stream:
+            if tools:
+                 logging.warning("Stream mode is not fully supported with tools in this implementation yet.")
             return _handle_stream_response(response, model, messages, api_params)
         else:
-            return _handle_normal_response(response, model, messages, api_params)
+            return _handle_normal_response(response, model, messages, api_params, tools_enabled=(tools is not None))
             
     except Exception as e:
         logging.error(f"调用LLM失败: {e}")
         raise e
 
-def _handle_normal_response(response, model, messages, api_params):
+def _handle_normal_response(response, model, messages, api_params, tools_enabled=False):
     """处理普通（非流式）响应"""
     try:
         choice = response.choices[0]
-        content = choice.message.content
+        message = choice.message
+        content = message.content
         
         # 尝试获取 reasoning_content (DeepSeek R1等)
-        reasoning_content = getattr(choice.message, 'reasoning_content', None)
+        reasoning_content = getattr(message, 'reasoning_content', None)
         
         # 准备记录的数据
         usage = response.usage
@@ -123,7 +137,11 @@ def _handle_normal_response(response, model, messages, api_params):
             reasoning_content=reasoning_content
         )
         
-        return content
+        if tools_enabled:
+            return message # Return full message object for tool handling
+        else:
+            return content # Keep backward compatibility
+            
     except Exception as e:
         logging.error(f"处理LLM响应失败: {e}")
         # 如果处理响应出错，尝试返回原始内容或抛出

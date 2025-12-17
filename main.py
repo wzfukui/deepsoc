@@ -99,6 +99,9 @@ app.register_blueprint(user_bp, url_prefix='/api/user')
 from app.controllers.engineer_chat_api import engineer_chat_bp
 app.register_blueprint(engineer_chat_bp, url_prefix='/api/engineer-chat')
 
+from app.controllers.mcp_controller import mcp_bp
+app.register_blueprint(mcp_bp, url_prefix='/api/mcp')
+
 from app.controllers.socket_controller import register_socket_events
 register_socket_events(socketio)
 
@@ -254,11 +257,6 @@ def prompt_settings():
 @login_required
 def background_security():
     return render_template('background_security.html')
-
-@app.route('/settings/soar-playbooks')
-@login_required
-def soar_playbooks():
-    return render_template('soar_playbooks.html')
 
 @app.route('/settings/mcp-tools')
 @login_required

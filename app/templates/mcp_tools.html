@@ -3,9 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MCP Tools - DeepSOC</title>
+    <title>MCP 工具管理 - DeepSOC</title>
     <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.css">
     <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .server-card {
+            transition: all 0.3s;
+            border-left: 5px solid transparent;
+        }
+        .server-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .server-card.status-enabled { border-left-color: #198754; }
+        .server-card.status-disabled { border-left-color: #6c757d; }
+        .server-card.status-error { border-left-color: #dc3545; }
+        
+        .tool-badge {
+            font-size: 0.8em;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            display: inline-block;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
@@ -22,30 +43,17 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/">首页</a>
                     </li>
-                    <li class="nav-item d-none" id="user-management-nav-item">
-                        <a class="nav-link" href="/user-management">用户管理</a>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/warroom/latest">作战室</a>
                     </li>
-                    <li class="nav-item dropdown" id="settings-nav-item">
-                        <a class="nav-link dropdown-toggle active" href="#" id="settings-dropdown" role="button" data-bs-toggle="dropdown">设置</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle active" href="#" id="settingsDropdown" role="button" data-bs-toggle="dropdown">
+                            设置
+                        </a>
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="/settings/prompts">提示词管理</a></li>
                             <li><a class="dropdown-item" href="/settings/background-security">安全背景</a></li>
-                            <li><a class="dropdown-item" href="/settings/soar-playbooks">SOAR剧本</a></li>
                             <li><a class="dropdown-item active" href="/settings/mcp-tools">MCP Tools</a></li>
-                        </ul>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item" id="login-nav-item">
-                        <a class="nav-link" href="/login">登录</a>
-                    </li>
-                    <li class="nav-item dropdown d-none" id="user-nav-item">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <span id="user-info">用户</span>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="/change-password">修改密码</a></li>
-                            <li><a class="dropdown-item" href="#" id="logout-btn">退出登录</a></li>
                         </ul>
                     </li>
                 </ul>
@@ -54,22 +62,270 @@
     </nav>
 
     <div class="container">
-        <h1 class="mb-4">MCP Tools</h1>
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">内容</h5>
-                <button class="btn btn-sm btn-primary" id="save-btn">保存</button>
-            </div>
-            <div class="card-body">
-                <textarea class="form-control" rows="12" id="background-text"></textarea>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>MCP 工具管理</h2>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editServerModal" onclick="prepareAdd()">
+                <i class="bi bi-plus-lg"></i> 添加 MCP Server
+            </button>
+        </div>
+
+        <div id="server-list" class="row g-4">
+            <!-- Server Cards will be loaded here -->
+            <div class="col-12 text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
             </div>
         </div>
     </div>
 
-    <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+    <!-- Edit Server Modal -->
+    <div class="modal fade" id="editServerModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">配置 MCP Server</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="serverForm">
+                        <input type="hidden" id="serverId">
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Server Key *</label>
+                                <input type="text" class="form-control" id="serverKey" placeholder="唯一标识符，如 nmap-scanner">
+                                <div class="form-text">创建后不可修改</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">工具名称 *</label>
+                                <input type="text" class="form-control" id="serverName" placeholder="显示名称">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">传输类型 *</label>
+                            <select class="form-select" id="transportType">
+                                <option value="sse">Streamable HTTP (SSE) - 推荐</option>
+                                <option value="http" disabled>HTTP (Standard) - 暂不支持</option>
+                                <option value="stdio" disabled>Stdio (Local) - 暂不支持</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Base URL *</label>
+                            <input type="url" class="form-control" id="baseUrl" placeholder="http://localhost:3000/sse">
+                            <div class="form-text">MCP Server 的 SSE 端点地址</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">描述</label>
+                            <textarea class="form-control" id="serverDescription" rows="2"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Auth Token (可选)</label>
+                            <input type="password" class="form-control" id="authToken" placeholder="Bearer Token">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">超时时间 (秒) *</label>
+                            <input type="number" class="form-control" id="timeout" value="30">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="saveServer()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <strong class="me-auto" id="toastTitle">通知</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toastBody"></div>
+        </div>
+    </div>
 
     <script src="/static/js/bootstrap.bundle.min.js"></script>
-    <script src="/static/js/background_editor.js"></script>
-    <script>const BACKGROUND_NAME = 'mcp_tools';</script>
+    <script>
+        document.addEventListener('DOMContentLoaded', loadServers);
+
+        function showToast(message, type='info') {
+            const toastEl = document.getElementById('liveToast');
+            document.getElementById('toastBody').textContent = message;
+            document.getElementById('toastTitle').textContent = type === 'error' ? '错误' : '成功';
+            const toast = new bootstrap.Toast(toastEl);
+            toast.show();
+        }
+
+        async function loadServers() {
+            try {
+                const res = await fetch('/api/mcp/servers');
+                const data = await res.json();
+                const container = document.getElementById('server-list');
+                
+                if (data.status === 'success') {
+                    container.innerHTML = data.data.map(server => `
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card server-card status-${server.status}">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <h5 class="card-title text-truncate" title="${server.name}">${server.name}</h5>
+                                        <span class="badge bg-${getStatusBadgeColor(server.status)}">${getStatusLabel(server.status)}</span>
+                                    </div>
+                                    <h6 class="card-subtitle mb-2 text-muted small">${server.server_key}</h6>
+                                    <p class="card-text small text-truncate">${server.description || '无描述'}</p>
+                                    <p class="card-text small text-muted">
+                                        <i class="bi bi-link-45deg"></i> ${server.base_url}<br>
+                                        <i class="bi bi-tools"></i> ${server.tools_count} 个工具
+                                    </p>
+                                    <div class="d-flex justify-content-end gap-2 mt-3">
+                                        <button class="btn btn-sm btn-outline-success" onclick="syncServer(${server.id})">
+                                            <i class="bi bi-arrow-repeat"></i> 测试&同步
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-primary" onclick='editServer(${JSON.stringify(server)})'>
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteServer(${server.id})">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    if (data.data.length === 0) {
+                        container.innerHTML = '<div class="col-12 text-center text-muted py-5">暂无 MCP Server，请点击右上角添加。</div>';
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+                showToast('加载失败', 'error');
+            }
+        }
+
+        function getStatusBadgeColor(status) {
+            switch(status) {
+                case 'enabled': return 'success';
+                case 'disabled': return 'secondary';
+                case 'error': return 'danger';
+                default: return 'warning';
+            }
+        }
+        
+        function getStatusLabel(status) {
+             switch(status) {
+                case 'enabled': return '已启用';
+                case 'disabled': return '已停用';
+                case 'error': return '异常';
+                default: return status;
+            }
+        }
+
+        function prepareAdd() {
+            document.getElementById('serverForm').reset();
+            document.getElementById('serverId').value = '';
+            document.getElementById('serverKey').disabled = false;
+            document.getElementById('modalTitle').textContent = '添加 MCP Server';
+        }
+
+        function editServer(server) {
+            document.getElementById('serverId').value = server.id;
+            document.getElementById('serverKey').value = server.server_key;
+            document.getElementById('serverKey').disabled = true;
+            document.getElementById('serverName').value = server.name;
+            document.getElementById('transportType').value = server.transport_type;
+            document.getElementById('baseUrl').value = server.base_url;
+            document.getElementById('serverDescription').value = server.description || '';
+            document.getElementById('timeout').value = server.timeout;
+            document.getElementById('modalTitle').textContent = '编辑 MCP Server';
+            
+            new bootstrap.Modal(document.getElementById('editServerModal')).show();
+        }
+
+        async function saveServer() {
+            const id = document.getElementById('serverId').value;
+            const data = {
+                server_key: document.getElementById('serverKey').value,
+                name: document.getElementById('serverName').value,
+                transport_type: document.getElementById('transportType').value,
+                base_url: document.getElementById('baseUrl').value,
+                description: document.getElementById('serverDescription').value,
+                auth_token: document.getElementById('authToken').value,
+                timeout: document.getElementById('timeout').value
+            };
+
+            try {
+                const url = id ? `/api/mcp/servers/${id}` : '/api/mcp/servers';
+                const method = id ? 'PUT' : 'POST';
+                
+                const res = await fetch(url, {
+                    method: method,
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await res.json();
+                if (result.status === 'success') {
+                    bootstrap.Modal.getInstance(document.getElementById('editServerModal')).hide();
+                    showToast('保存成功');
+                    loadServers();
+                } else {
+                    alert(result.message);
+                }
+            } catch (e) {
+                console.error(e);
+                alert('保存失败');
+            }
+        }
+
+        async function deleteServer(id) {
+            if (!confirm('确定要删除该 Server 吗？')) return;
+            
+            try {
+                const res = await fetch(`/api/mcp/servers/${id}`, { method: 'DELETE' });
+                const result = await res.json();
+                if (result.status === 'success') {
+                    showToast('删除成功');
+                    loadServers();
+                } else {
+                    alert(result.message);
+                }
+            } catch (e) {
+                alert('删除失败');
+            }
+        }
+
+        async function syncServer(id) {
+            const btn = event.currentTarget;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 同步中...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`/api/mcp/servers/${id}/sync`, { method: 'POST' });
+                const result = await res.json();
+                if (result.status === 'success') {
+                    showToast(result.message);
+                    loadServers();
+                } else {
+                    alert('同步失败: ' + result.message);
+                }
+            } catch (e) {
+                alert('同步请求失败');
+            } finally {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        }
+    </script>
 </body>
 </html>

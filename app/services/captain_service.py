@@ -5,12 +5,10 @@ import traceback
 from datetime import datetime
 from flask import current_app
 from app.models import db, Event, Task, Message, Summary
-from app.services.llm_service import call_llm, parse_yaml_response
-from app.controllers.socket_controller import broadcast_message
-from app.services.prompt_service import PromptService
+from app.services.llm_service import call_llm
+from app.mcp import MCPManager
 from app.utils.message_utils import create_standard_message
 from app.utils.mq_utils import RabbitMQPublisher
-import yaml
 import pika
 
 import logging
@@ -18,286 +16,213 @@ logger = logging.getLogger(__name__)
 
 
 def get_events_to_process():
-    """获取待处理的安全事件
-    
-    在新的状态流转设计中，Captain只处理pending状态的事件
-    round_finished状态的事件由event_next_round_worker处理并转换为pending
-    """
+    """获取待处理的安全事件"""
     return Event.query.filter_by(event_status='pending').order_by(Event.created_at.asc()).first()  
 
 def process_event(event, publisher: RabbitMQPublisher):
-    """处理单个安全事件
+    """处理单个安全事件 (MCP Enhanced Version)"""
+    logger.info(f"Captain处理事件: {event.event_id} - {event.event_name}")
     
-    Args:
-        event: Event对象
-        publisher: RabbitMQPublisher 实例，用于发送消息到队列
-    """
-    logger.info(f"处理事件: {event.event_id} - {event.event_name}")
-    is_first_round = (event.current_round == 1)
+    # 初始化
     round_id = event.current_round
-
-    # 消息1: LLM 请求通知
-    content_for_llm_request_msg = {"text": "Captain on the bridge! 正在请求大模型AI指挥官进行分析决策。"}
-    db_message_llm_req = create_standard_message(
-        event_id=event.event_id,
-        message_from='system', # 或者 '_captain' if captain is initiating
-        round_id=round_id,
-        message_type='llm_request', # 更具体的类型如 captain_llm_request
-        content_data=content_for_llm_request_msg
-    )
-    if db_message_llm_req and publisher:
-        try:
-            routing_key = f"notifications.frontend.{db_message_llm_req.event_id}.{db_message_llm_req.message_from}.{db_message_llm_req.message_type}"
-            publisher.publish_message(
-                message_body=db_message_llm_req.to_dict(),
-                routing_key=routing_key
-            )
-            logger.info(f"消息 [LLM Req] {db_message_llm_req.message_id} 已发布到 RabbitMQ. RK: {routing_key}")
-        except Exception as e_pub:
-            logger.error(f"发布消息 [LLM Req] {db_message_llm_req.message_id} 到 RabbitMQ 失败: {e_pub}")
-            logger.error(traceback.format_exc())
-    
-    # 更新事件状态为处理中
     event.event_status = 'processing'
     db.session.commit()
-    # 通知事件状态变更 (可选，如果需要非常实时的状态更新)
-    # TBD: Decide if every status change needs MQ message, or if LLM response message is enough.
 
-    request_data = {
-        'type': 'generate_tasks_by_event',
-        'req_id': str(uuid.uuid4()),
-        'res_id': str(uuid.uuid4()),
-        'event_id': event.event_id,
-        'round_id': round_id,
-        'event_name': event.event_name if event.event_name else '{ 请大模型根据message和context生成 }',
-        'message': event.message,
-        'context': event.context if event.context else '无',
-        'source': event.source if event.source else '无',
-        'severity': event.severity if event.severity else '无',
-        'created_at': event.created_at.strftime('%Y-%m-%d %H:%M:%S')
-    }
-    
-    tasks_history_list = []
-    history_tasks_query = Task.query.filter_by(event_id=event.event_id).order_by(Task.created_at.desc()).all()
-    for task_item in history_tasks_query:
-        tasks_history_list.append({
-            "task_id": task_item.task_id,
-            "task_name": task_item.task_name,
-            "task_type": task_item.task_type,
-            "task_status": task_item.task_status,
-            "task_created_at": task_item.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            "task_updated_at": task_item.updated_at.strftime('%Y-%m-%d %H:%M:%S')
-        })
+    # 通知前端: AI开始介入
+    _notify_frontend(publisher, event, 'system', 'llm_request', 
+                    {"text": "Captain on the bridge! 正在请求AI指挥官调用MCP工具进行分析。"})
 
-    if tasks_history_list:
-        request_data['history_tasks'] = tasks_history_list
-    
-    yaml_data = yaml.dump(request_data, allow_unicode=True, default_flow_style=False, indent=2)
-    # logger.info(yaml_data) # Logged later in user_prompt
+    # 1. 获取所有可用 MCP 工具
+    tools = MCPManager.get_all_tool_definitions()
+    logger.info(f"可用工具数量: {len(tools)}")
 
-    last_round_summary_content = ""
-    if not is_first_round:
-        last_round_summary = Summary.query.filter_by(event_id=event.event_id, round_id=round_id-1).order_by(Summary.created_at.desc()).first()
-        if last_round_summary:
-            last_round_summary_content = f"""
-为了方便你更加全面地分析，这里提供了你上一轮安排的任务和战况同步信息：
-<event_progress>
-{last_round_summary.event_summary}
-</event_progress>
+    # 2. 构建对话历史
+    # System Prompt 简洁化
+    system_prompt = """你是一个高级安全运营指挥官（Captain）。你的任务是分析安全事件，并利用一切可用的工具来调查、取证和响应。
+你拥有通过 MCP (Model Context Protocol) 调用的工具集。
+- 请根据事件信息，自主决定调用哪些工具。
+- 分析工具的输出，如果需要更多信息，继续调用工具。
+- 如果认为事件已处理完毕或有了明确结论，请给出最终的分析报告。
+不要输出YAML格式，直接以自然语言回复，或者发起工具调用。
 """
-    user_prompt = f"""```yaml
-{yaml_data}
-```
-{last_round_summary_content}
-针对当前网络安全事件进行分析决策，并分配适当的任务给安全管理员_manager（_analyst, _operator, _coordinator），如果有必要。
-"""
-    logger.info(f"User prompt for event {event.event_id}, round {round_id}:\n{user_prompt}")
-    logger.info("--------------------------------")
+
+    # User Prompt 包含事件详情
+    event_context = f"""
+    事件ID: {event.event_id}
+    事件名称: {event.event_name}
+    描述: {event.message}
+    上下文: {event.context}
+    来源: {event.source}
+    严重性: {event.severity}
+    """
     
-    prompt_service = PromptService('_captain')
-    system_prompt = prompt_service.get_system_prompt()
-    response = call_llm(system_prompt, user_prompt)
+    # 历史对话记录 (如果不是第一轮，可以加载之前的 Summary)
+    history = []
+    if event.current_round > 1:
+        last_summary = Summary.query.filter_by(event_id=event.event_id, round_id=round_id-1).first()
+        if last_summary:
+            history.append({"role": "assistant", "content": f"上一轮总结: {last_summary.event_summary}"})
+
+    # 3. 进入 LLM 思考 Loop (支持多次 Tool Call)
+    max_steps = 10
+    current_step = 0
     
-    logger.info(f"LLM Response for event {event.event_id}, round {round_id}:\n{response}")
-    logger.info("--------------------------------")
+    # 初始 Prompt
+    current_messages = [
+        {"role": "user", "content": f"请分析以下安全事件并采取行动：\n{event_context}"}
+    ]
+
+    while current_step < max_steps:
+        current_step += 1
+        logger.info(f"LLM Step {current_step}/{max_steps}")
+
+        # 调用 LLM
+        try:
+            # 注意：history 参数是用来传之前的 round 对话的，这里我们将 current_messages 作为 context 传递
+            # 因为 call_llm 的设计是把 system_prompt + history + user_prompt 拼起来
+            # 这里我们需要灵活一点。为了复用 call_llm，我们将 current_messages 拆分
+            
+            # 实际上 call_llm 的 history 参数期望 list of dicts.
+            # 我们可以把 current_messages 全部传给 history (除了最后一个作为 user_prompt? 不，call_llm 会 append user_prompt)
+            # 让我们稍微 hack 一下 call_llm 的用法：
+            # system_prompt 传进去
+            # user_prompt 传空字符串 (如果 current_messages 已经包含了用户请求)
+            # history 传 current_messages
+            
+            response_msg = call_llm(
+                system_prompt=system_prompt,
+                user_prompt="", 
+                history=current_messages,
+                tools=tools if tools else None,
+                tool_choice="auto" if tools else None
+            )
+        except Exception as e:
+            logger.error(f"LLM调用失败: {e}")
+            _notify_frontend(publisher, event, '_captain', 'error_internal', {"text": f"LLM调用失败: {str(e)}"})
+            event.event_status = 'error_processing'
+            db.session.commit()
+            return
+
+        # 检查响应类型
+        # 如果是 str，说明是纯文本回复 -> 结束
+        # 如果是 Message 对象且有 tool_calls -> 执行工具
+        
+        content = response_msg.content if hasattr(response_msg, 'content') else response_msg
+        tool_calls = getattr(response_msg, 'tool_calls', None)
+
+        # 记录 Assistant 回复到 history
+        current_messages.append(response_msg) # response_msg 是 ChatCompletionMessage 对象，可以直接作为 history item (OpenAI SDK handle this)
+
+        # 通知前端 Assistant 的思考/文本
+        if content:
+            _notify_frontend(publisher, event, '_captain', 'llm_response', {"text": content})
+            logger.info(f"LLM回复: {content[:100]}...")
+
+        if tool_calls:
+            logger.info(f"LLM发起 {len(tool_calls)} 个工具调用")
+            
+            for tool_call in tool_calls:
+                func_name = tool_call.function.name
+                func_args_str = tool_call.function.arguments
+                call_id = tool_call.id
+                
+                try:
+                    func_args = json.loads(func_args_str)
+                except:
+                    func_args = {}
+                
+                logger.info(f"执行工具: {func_name}, 参数: {func_args}")
+                _notify_frontend(publisher, event, '_captain', 'tool_execution', 
+                                {"text": f"正在执行工具: {func_name}", "args": func_args})
+
+                # 执行工具
+                tool_result = MCPManager.execute_tool_sync(func_name, func_args)
+                result_str = json.dumps(tool_result, ensure_ascii=False)
+                
+                # 记录 Tool Output 到 history
+                current_messages.append({
+                    "role": "tool",
+                    "tool_call_id": call_id,
+                    "content": result_str
+                })
+                
+                logger.info(f"工具执行结果长度: {len(result_str)}")
+                _notify_frontend(publisher, event, '_executor', 'tool_result', 
+                                {"text": f"工具 {func_name} 执行完成", "result": tool_result})
+            
+            # 继续下一轮 Loop，把 Tool Outputs 带给 LLM
+            continue
+        else:
+            # 没有 Tool Calls，说明 LLM 完成了回复
+            logger.info("LLM结束思考，任务完成")
+            break
+
+    # 4. 结束处理
+    event.event_status = 'completed'
     
-    parsed_response = parse_yaml_response(response)
-    if not parsed_response:
-        logger.error(f"解析LLM响应失败 for event {event.event_id}: {response}")
-        # Create an error message for frontend
-        error_content = {"text": "AI指挥官未能正确解析LLM响应数据，请检查日志。", "original_response": response}
-        db_message_parse_err = create_standard_message(
-            event_id=event.event_id,
-            message_from='_captain',
-            round_id=round_id,
-            message_type='error_internal',
-            content_data=error_content
-        )
-        if db_message_parse_err and publisher:
-            try:
-                routing_key = f"notifications.frontend.{db_message_parse_err.event_id}.{db_message_parse_err.message_from}.{db_message_parse_err.message_type}"
-                publisher.publish_message(message_body=db_message_parse_err.to_dict(), routing_key=routing_key)
-                logger.info(f"消息 [LLM Parse Err] {db_message_parse_err.message_id} 已发布到 RabbitMQ. RK: {routing_key}")
-            except Exception as e_pub:
-                logger.error(f"发布消息 [LLM Parse Err] {db_message_parse_err.message_id} 到 RabbitMQ 失败: {e_pub}")
-        event.event_status = 'error_processing' # Set a specific error state
-        db.session.commit()
+    # 创建 Summary (简单取最后一次回复)
+    summary_text = content if content else "处理完成 (无文本总结)"
+    
+    summary = Summary(
+        summary_id=str(uuid.uuid4()),
+        event_id=event.event_id,
+        round_id=round_id,
+        event_summary=summary_text,
+        event_suggestion="无"
+    )
+    db.session.add(summary)
+    db.session.commit()
+
+    _notify_frontend(publisher, event, '_captain', 'event_completed', 
+                    {"text": "事件分析处理已完成。", "summary": summary_text})
+
+
+def _notify_frontend(publisher, event, msg_from, msg_type, content_data):
+    """辅助函数：发送消息到前端"""
+    if not publisher:
         return
     
-    response_type = parsed_response.get('response_type')
-    response_round_id = parsed_response.get('round_id', round_id)
-
-    # 消息2: LLM 响应内容通知
-    db_message_llm_resp = create_standard_message(
+    msg = create_standard_message(
         event_id=event.event_id,
-        message_from='_captain',
-        round_id=response_round_id,
-        message_type='llm_response', # or captain_llm_response
-        content_data=parsed_response # parsed_response is already a dict
+        message_from=msg_from,
+        round_id=event.current_round,
+        message_type=msg_type,
+        content_data=content_data
     )
-    if db_message_llm_resp and publisher:
+    if msg:
+        routing_key = f"notifications.frontend.{msg.event_id}.{msg.message_from}.{msg.message_type}"
         try:
-            routing_key = f"notifications.frontend.{db_message_llm_resp.event_id}.{db_message_llm_resp.message_from}.{db_message_llm_resp.message_type}"
-            publisher.publish_message(
-                message_body=db_message_llm_resp.to_dict(),
-                routing_key=routing_key
-            )
-            logger.info(f"消息 [LLM Resp] {db_message_llm_resp.message_id} 已发布到 RabbitMQ. RK: {routing_key}")
-        except Exception as e_pub:
-            logger.error(f"发布消息 [LLM Resp] {db_message_llm_resp.message_id} 到 RabbitMQ 失败: {e_pub}")
-            logger.error(traceback.format_exc())
-
-    if response_type == 'TASK':
-        tasks_data = parsed_response.get('tasks', [])
-        created_task_ids = []
-        for task_detail in tasks_data:
-            new_task_id = str(uuid.uuid4())
-            task = Task(
-                task_id=new_task_id,
-                event_id=event.event_id,
-                task_name=task_detail.get('task_name'),
-                task_type=task_detail.get('task_type'),
-                task_assignee=task_detail.get('task_assignee'),
-                task_status='pending',
-                round_id=response_round_id
-            )
-            db.session.add(task)
-            created_task_ids.append(new_task_id)
-        
-        event_name_from_llm = parsed_response.get('event_name', event.event_name)
-        if event_name_from_llm and event_name_from_llm != event.event_name:
-            event.event_name = event_name_from_llm
-        
-        # For tasks, the event might not be 'completed' yet, but perhaps 'tasks_assigned' or remains 'processing'
-        # The plan implies Captain might mark event 'completed' if LLM says MISSION_COMPLETE
-        # If tasks are assigned, event status should reflect that.
-        # For now, we assume no status change here, tasks are just created.
-        db.session.commit() # Commit tasks and potential event_name change
-        logger.info(f"为事件 {event.event_id} 创建了 {len(created_task_ids)} 个任务: {created_task_ids}")
-        
-        # Optional: Send a specific message about task creation if llm_response message is not sufficient
-
-    elif response_type == 'MISSION_COMPLETE':
-        event.event_status = 'completed' # Captain decides event is completed based on LLM
-        db.session.commit()
-        logger.info(f"事件 {event.event_id} 已被Captain标记为 'completed' 基于 LLM 响应.")
-        # Send a message about event completion
-        completion_content = {"text": f"事件 {event.event_id} ({event.event_name}) 已由AI指挥官分析并标记为完成。", "details": parsed_response.get('response_text')}
-        db_message_completed = create_standard_message(
-            event_id=event.event_id,
-            message_from='_captain',
-            round_id=response_round_id,
-            message_type='event_completed_by_captain',
-            content_data=completion_content
-        )
-        if db_message_completed and publisher:
-            try:
-                routing_key = f"notifications.frontend.{db_message_completed.event_id}.{db_message_completed.message_from}.{db_message_completed.message_type}"
-                publisher.publish_message(message_body=db_message_completed.to_dict(), routing_key=routing_key)
-                logger.info(f"消息 [Event Completed] {db_message_completed.message_id} 已发布到 RabbitMQ. RK: {routing_key}")
-            except Exception as e_pub:
-                logger.error(f"发布消息 [Event Completed] {db_message_completed.message_id} 到 RabbitMQ 失败: {e_pub}")
-
-    elif response_type == 'ROGER': # This seems like an error or simple ack from LLM
-        event.event_status = 'error_from_llm' # Or a more specific status
-        db.session.commit()
-        error_text = parsed_response.get('response_text', 'AI指挥官返回确认信息，但未分配任务或完成事件。')
-        logger.error(f"事件 {event.event_id} 处理中，LLM 返回 'ROGER': {error_text}")
-        # Send a message about this 'ROGER' state
-        roger_content = {"text": f"AI指挥官针对事件 {event.event_id} 的分析响应: {error_text}", "details": parsed_response}
-        db_message_roger = create_standard_message(
-            event_id=event.event_id,
-            message_from='_captain',
-            round_id=response_round_id,
-            message_type='llm_roger_response',
-            content_data=roger_content
-        )
-        if db_message_roger and publisher:
-            try:
-                routing_key = f"notifications.frontend.{db_message_roger.event_id}.{db_message_roger.message_from}.{db_message_roger.message_type}"
-                publisher.publish_message(message_body=db_message_roger.to_dict(), routing_key=routing_key)
-                logger.info(f"消息 [LLM Roger] {db_message_roger.message_id} 已发布到 RabbitMQ. RK: {routing_key}")
-            except Exception as e_pub:
-                logger.error(f"发布消息 [LLM Roger] {db_message_roger.message_id} 到 RabbitMQ 失败: {e_pub}")
-    else:
-        logger.warning(f"未知的LLM response_type '{response_type}' for event {event.event_id}")
-        # Potentially send a generic notification for unknown response types
+            publisher.publish_message(message_body=msg.to_dict(), routing_key=routing_key)
+        except Exception as e:
+            logger.error(f"发送消息失败: {e}")
 
 def run_captain():
     """运行Captain服务"""
-    logger.info("启动Captain服务...")
-    
-    from main import app # For app_context
+    logger.info("启动Captain服务 (MCP Enhanced)...")
+    from main import app
     
     publisher = None
     try:
-        publisher = RabbitMQPublisher() # Initialize publisher
-        logger.info("RabbitMQ Publisher for Captain initialized.")
+        publisher = RabbitMQPublisher()
+        logger.info("RabbitMQ Publisher ready.")
         
-        with app.app_context(): # Ensure DB operations are within app context
+        with app.app_context():
             while True:
                 try:
                     event = get_events_to_process()
                     if event:
-                        process_event(event, publisher) # Pass publisher to process_event
-                        # 每处理完一个事件后提交/回滚一次，确保事务结束，释放行锁，下一轮查询能看到最新数据
-                        try:
-                            db.session.commit()
-                        except Exception as loop_commit_err:
-                            logger.error(f"Captain 主循环提交事务失败: {loop_commit_err}")
-                            db.session.rollback()
+                        process_event(event, publisher)
+                        db.session.commit()
                     else:
-                        # logger.debug("Captain: 没有待处理事件，等待中...") # reduce noise
-                        # 如果本轮没有事件，也显式地回滚事务，避免长事务导致快照不可见
                         db.session.rollback()
                         time.sleep(5)
-                except pika.exceptions.AMQPConnectionError as amqp_err:
-                    logger.error(f"Captain服务 RabbitMQ连接错误: {amqp_err}. Publisher 会尝试重连。")
-                    # Publisher has internal retries for connect and publish, 
-                    # so we might just sleep and let the loop continue for it to retry.
-                    time.sleep(10) # Wait before next cycle if major MQ error
                 except Exception as e:
-                    logger.error(f"Captain服务在事件处理循环中发生错误: {e}")
+                    logger.error(f"Captain Loop Error: {e}")
                     logger.error(traceback.format_exc())
-                    time.sleep(5) # Wait a bit before retrying the loop
+                    time.sleep(5)
                     
-    except pika.exceptions.AMQPConnectionError as amqp_startup_err:
-        logger.critical(f"Captain服务启动失败：无法连接到RabbitMQ. 请检查RabbitMQ服务和配置. Error: {amqp_startup_err}")
-        logger.critical(traceback.format_exc())
-        # Service cannot run without MQ, so exiting or stopping might be an option here
-        # For now, it will just log and terminate if __name__ == '__main__' or if called directly.
-    except Exception as e_startup:
-        logger.critical(f"Captain服务启动时发生未知严重错误: {e_startup}")
-        logger.critical(traceback.format_exc())
+    except Exception as e:
+        logger.critical(f"Captain Startup Error: {e}")
     finally:
         if publisher:
-            logger.info("Captain服务正在关闭RabbitMQ publisher...")
             publisher.close()
-        logger.info("Captain服务已停止。")
-
-# This allows running the service independently for testing if needed
-# However, typically it's run via main.py -role _captain
-# if __name__ == '__main__':
-#     # Basic logging config for direct run testing
-#     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-#     run_captain()

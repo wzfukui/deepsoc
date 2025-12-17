@@ -332,6 +332,63 @@ class Prompt(db.Model):
         }
 
 
+class MCPServer(db.Model):
+    """MCP Server 配置表"""
+    __tablename__ = 'mcp_servers'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    server_key = db.Column(db.String(64), unique=True, nullable=False)
+    name = db.Column(db.String(128), nullable=False)
+    description = db.Column(db.Text)
+    transport_type = db.Column(db.String(32), default='sse') # stdio, sse, http
+    base_url = db.Column(db.String(256))
+    auth_token = db.Column(db.String(256)) # 可以加密存储
+    timeout = db.Column(db.Integer, default=30)
+    status = db.Column(db.String(32), default='disabled') # disabled, enabled, active, error
+    tools_count = db.Column(db.Integer, default=0)
+    last_check_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'server_key': self.server_key,
+            'name': self.name,
+            'description': self.description,
+            'transport_type': self.transport_type,
+            'base_url': self.base_url,
+            # auth_token 不返回前端
+            'timeout': self.timeout,
+            'status': self.status,
+            'tools_count': self.tools_count,
+            'last_check_at': self.last_check_at.isoformat() if self.last_check_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+class MCPTool(db.Model):
+    """MCP 工具缓存表"""
+    __tablename__ = 'mcp_tools'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    server_id = db.Column(db.Integer, db.ForeignKey('mcp_servers.id'))
+    name = db.Column(db.String(128), nullable=False)
+    description = db.Column(db.Text)
+    input_schema = db.Column(db.JSON) # JSON Schema
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'server_id': self.server_id,
+            'name': self.name,
+            'description': self.description,
+            'input_schema': self.input_schema,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
 class GlobalSetting(db.Model):
     """全局设置表，用于存储系统级状态"""
     __tablename__ = 'global_settings'

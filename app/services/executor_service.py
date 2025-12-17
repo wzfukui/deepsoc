@@ -6,7 +6,7 @@ from flask import current_app
 from sqlalchemy import func
 from app.models import db, Event, Task, Action, Command, Execution, Message
 from app.controllers.socket_controller import broadcast_message
-from app.services.playbook_service import PlaybookService
+# from app.services.playbook_service import PlaybookService
 from app.utils.message_utils import create_standard_message
 import logging
 
@@ -40,7 +40,11 @@ def process_command(command):
         # 根据命令类型执行不同的处理逻辑
         if command.command_type == 'playbook':
             # 执行SOAR剧本
-            result = execute_playbook_command(command)
+            # result = execute_playbook_command(command)
+            result = {
+                "status": "failed",
+                "message": "SOAR playbook service has been removed. Please use MCP tools."
+            }
         elif command.command_type == 'manual':
             # 人工命令，需要前端用户处理
             result = handle_manual_command(command)
@@ -94,23 +98,17 @@ def process_command(command):
         })
 
 def execute_playbook_command(command):
-    """执行SOAR剧本命令
-    
-    Args:
-        command: 命令对象
-    
-    Returns:
-        执行结果
-    """
-    logger.info(f"执行SOAR剧本命令: {command.command_id}")
+    """执行SOAR剧本命令 (Deprecated)"""
+    logger.info(f"执行SOAR剧本命令: {command.command_id} - DEPRECATED")
+    return {"status": "failed", "message": "Deprecated"}
     
     # 创建PlaybookService实例
-    playbook_service = PlaybookService()
+    # playbook_service = PlaybookService()
     
     # 执行剧本
-    result = playbook_service.execute_playbook(command)
+    # result = playbook_service.execute_playbook(command)
     
-    return result
+    # return result
 
 def handle_manual_command(command):
     """处理人工命令
