@@ -38,11 +38,14 @@ DeepSOC 是一个基于多智能体（Multi-Agent）架构的安全运营中心�
 2.  **清理 Prompt**：简化 `app/prompts/default_prompts.py`，移除关于 "必须输出 YAML" 的长篇大论，让模型专注于业务逻辑。
 
 ### 中期 (1-2月)
-1.  **RAG 增强**：目前的 `playbook_list` 是硬编码在 Prompt 中的。建议建立 Playbook 知识库，根据 Incident 描述动态检索最相关的 5-10 个 Playbook 放入 Context。
+1.  **MCP 标准化集成 (SOAR as MCP Server)**:
+    - 鉴于开源项目 `soar-mcp` (https://github.com/flagify-com/soar-mcp) 已实现将 SOAR 剧本直接转换为 MCP Resources/Tools，DeepSOC 应全面转型为 **MCP Client**。
+    - **弃用 Playbook Prompts**: 不再需要在 Prompt 中硬编码或 RAG 检索 Playbook 列表。
+    - **动态工具发现**: Agent (如 Manager/Operator) 启动时连接 SOAR MCP Server，动态获取当前可用工具列表，直接通过 LLM Function Calling 调用，极大简化 Prompt 工程。
 2.  **异步化改造**：将 Flask Controller 和 Agent Service 改为 `async/await` 模式，提高高并发下的吞吐量。
 
 ### 长期
-1.  **MCP 标准化**：将 SOAR 客户端封装为标准的 MCP Server，让 DeepSOC 可以无缝对接任何支持 MCP 的 LLM 前端或 IDE。
+1.  **多 MCP Server 协同**: 不仅连接 SOAR，还可以连接 CMDB, Threat Intelligence 等其他 MCP Server，实现真正的工具生态互联。
 
 ## 5. 总结
 DeepSOC 的基础架构是稳固的。本次重构解决了最底层的 LLM 调用方式问题，为上层的智能化升级打下了基础。接下来的重点应放在 **结构化输出迁移** 和 **RAG 知识库构建** 上。
