@@ -1,5 +1,19 @@
 # Changelog
 
+## 2025-12-17 (Update 2)
+### UI/UX 优化：Clean Corporate Dark Mode (Admin Interface)
+- **新建管理后台主题** (`admin_dark.css`)：
+  - 实现类似 Linear/Vercel 的 Clean Corporate Dark Mode 风格。
+  - 定义全新的深色调色板、卡片样式、状态指示器和高对比度字体。
+- **重构管理仪表盘** (`admin_dashboard.html`)：
+  - 更新布局为 Dashboard 风格，包含 Stats Cards, Quick Actions 面板和 Recent Alerts 列表。
+  - 应用新的 CSS 主题。
+- **登录页面优化** (`login.html`)：
+  - 适配深色模式，优化卡片样式和品牌展示。
+- **全站管理页面适配**：
+  - 更新所有管理子页面（LLM设置、MCP工具、Prompt管理、用户管理、安全背景）以使用新主题。
+  - 引入 `Inter` 字体以提升可读性。
+
 ## 2025-12-17
 ### UI/UX 重构：Bento Grid 首页与独立管理后台
 - **首页改版 (Bento Grid)**：

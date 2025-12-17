@@ -7,26 +7,30 @@
     <link rel="stylesheet" href="/static/css/bootstrap.min.css">
     <link rel="stylesheet" href="/static/css/bootstrap-icons.css">
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/admin_dark.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         .login-page {
-            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ee 100%);
+            background-color: var(--bg-color);
             min-height: 100vh;
             display: flex;
             align-items: center;
         }
         .login-card {
-            border: none;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
         }
         .login-card .card-header {
-            border-bottom: none;
+            background-color: transparent;
+            border-bottom: 1px solid var(--border-color);
             padding: 20px;
+            text-align: center;
         }
-        .login-title {
+        .login-card .card-header h4 {
+            color: var(--text-primary);
             font-weight: 600;
-            color: #3a3a3a;
         }
         .brand-container {
             display: flex;
@@ -37,67 +41,82 @@
         .brand-logo {
             margin-right: 16px;
             transition: all 0.5s ease;
+            filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.1));
         }
         .brand-logo:hover {
             transform: scale(1.1) rotate(5deg);
         }
-        .brand-text {
-            text-align: left;
+        .brand-text h1 {
+            color: var(--text-primary);
+            font-weight: 700;
+            letter-spacing: -0.02em;
         }
+        .brand-text p {
+            color: var(--text-secondary);
+        }
+        
+        .input-group-text {
+            background-color: var(--hover-bg);
+            border-color: var(--border-color);
+            color: var(--text-secondary);
+        }
+        
+        /* Button overrides */
         .btn-primary {
-            padding: 10px;
-            font-weight: 500;
-            transition: all 0.3s ease;
+            background-color: var(--text-primary);
+            border-color: var(--text-primary);
+            color: #000;
+            font-weight: 600;
         }
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+            border-color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
         }
     </style>
 </head>
-<body class="login-page">
+<body class="dark-theme login-page">
     <div class="container">
         <div class="row justify-content-center">
-            <div class="col-md-5">
+            <div class="col-md-4">
                 <div class="brand-container">
-                    <img src="/static/images/logo/logo.png" alt="DeepSOC Logo" class="brand-logo logo-img" style="max-width: 80px;">
+                    <img src="/static/images/logo/logo.png" alt="DeepSOC Logo" class="brand-logo logo-img" style="max-width: 64px;">
                     <div class="brand-text">
-                        <h1 class="login-title">DeepSOC</h1>
-                        <p class="text-muted mb-0">AI驱动的安全运营中心</p>
+                        <h1 class="login-title mb-0">DeepSOC</h1>
+                        <p class="mb-0 small">AI Security Operations</p>
                     </div>
                 </div>
                 
-                <div class="card login-card shadow">
-                    <div class="card-header bg-primary text-white text-center py-3">
-                        <h4 class="mb-0">用户登录</h4>
-                    </div>
+                <div class="card login-card">
                     <div class="card-body p-4">
+                        <h4 class="mb-4 text-center fw-bold">Login</h4>
                         <div id="login-error" class="alert alert-danger d-none" role="alert"></div>
                         
                         <form id="login-form">
-                            <div class="mb-4">
-                                <label for="username" class="form-label">用户名</label>
+                            <div class="mb-3">
+                                <label for="username" class="form-label small text-muted text-uppercase fw-bold">Username</label>
                                 <div class="input-group">
-                                    <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                                    <span class="input-group-text"><i class="bi bi-person"></i></span>
                                     <input type="text" class="form-control" id="username" required>
                                 </div>
                             </div>
                             <div class="mb-4">
-                                <label for="password" class="form-label">密码</label>
+                                <label for="password" class="form-label small text-muted text-uppercase fw-bold">Password</label>
                                 <div class="input-group">
-                                    <span class="input-group-text"><i class="bi bi-key-fill"></i></span>
+                                    <span class="input-group-text"><i class="bi bi-key"></i></span>
                                     <input type="password" class="form-control" id="password" required>
                                 </div>
                             </div>
-                            <div class="d-grid gap-2">
-                                <button type="submit" class="btn btn-primary btn-lg">
-                                    <i class="bi bi-box-arrow-in-right me-2"></i>登录
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary py-2">
+                                    Sign In
                                 </button>
                             </div>
                         </form>
                         
                         <div class="text-center mt-4">
-                            <small class="text-muted">这是一个内部系统，如需账号请联系管理员</small>
+                            <small class="text-secondary">Restricted System</small>
                         </div>
                     </div>
                 </div>
@@ -111,4 +130,4 @@
     <script src="/static/js/bootstrap.bundle.min.js"></script>
     <script src="/static/js/login.js"></script>
 </body>
-</html> 
+</html>
