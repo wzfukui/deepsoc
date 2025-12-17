@@ -23,10 +23,10 @@ load_dotenv(ROOT_DIR / ".env")
 AGENT_COMMANDS = [
     [sys.executable, "main.py"],
     [sys.executable, "main.py", "-role", "_captain"],
-    # [sys.executable, "main.py", "-role", "_manager"],  # Deprecated
-    # [sys.executable, "main.py", "-role", "_operator"], # Deprecated
-    # [sys.executable, "main.py", "-role", "_executor"], # Deprecated (Replaced by MCP)
-    # [sys.executable, "main.py", "-role", "_expert"],   # Optional
+    [sys.executable, "main.py", "-role", "_manager"],
+    [sys.executable, "main.py", "-role", "_operator"],
+    [sys.executable, "main.py", "-role", "_executor"],
+    [sys.executable, "main.py", "-role", "_expert"],
 ]
 
 processes = []
