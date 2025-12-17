@@ -102,6 +102,9 @@ app.register_blueprint(engineer_chat_bp, url_prefix='/api/engineer-chat')
 from app.controllers.mcp_controller import mcp_bp
 app.register_blueprint(mcp_bp, url_prefix='/api/mcp')
 
+from app.controllers.llm_config_controller import llm_config_bp
+app.register_blueprint(llm_config_bp, url_prefix='/api/llm-config')
+
 from app.controllers.socket_controller import register_socket_events
 register_socket_events(socketio)
 
@@ -262,6 +265,11 @@ def background_security():
 @login_required
 def mcp_tools():
     return render_template('mcp_tools.html')
+
+@app.route('/settings/llm')
+@login_required
+def llm_settings():
+    return render_template('llm_settings.html')
 
 @app.route('/user-management')
 @login_required
