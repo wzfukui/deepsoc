@@ -2,9 +2,14 @@
 
 ## 2025-12-18
 ### Bug Fixes
-- **MCP Client 重构 (Removal of sseclient)**:
-  - 移除了 `sseclient-py` 依赖，改用 Python 原生解析逻辑处理 SSE 响应，彻底解决了与华为 USG 防火墙 MCP Server 的兼容性问题。
-  - 增强了 Client 的稳健性，能够同时处理 JSON 直接响应和 SSE 流式响应。
+- **MCP Client 重构 (Use FastMCP)**:
+  - 彻底重构 MCP Client，采用 `fastmcp` 库替代手动实现。
+  - 提供了更强大的协议兼容性，完美支持标准 SSE 和非标准（JSON连接）场景。
+  - 验证并通过了华为 USG 防火墙 MCP Server 的集成测试。
+- **UI 优化**:
+  - 在 MCP 工具管理界面启用了 "HTTP (Standard)" 选项，以消除用户对协议支持的困惑。
+
+### Previous Fixes (Today)
 - **MCP Client 兼容性增强**:
   - 修复了 MCP Client 在连接阶段处理非标准 SSE 响应（直接返回 JSON）时的兼容性问题。
   - 增强了对 POST 请求返回 SSE 流格式响应的解析支持。
