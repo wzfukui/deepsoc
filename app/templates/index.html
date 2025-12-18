@@ -7,17 +7,25 @@
     <link rel="stylesheet" href="/static/css/bootstrap.min.css">
     <link rel="stylesheet" href="/static/css/bootstrap-icons.css">
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/admin_dark.css">
+    <link rel="stylesheet" href="/static/css/theme_light.css">
     <style>
         body {
-            background-color: #f0f2f5;
+            background-color: var(--bg-color);
         }
         .navbar {
             background-color: #1a1d21 !important;
         }
         .bento-card {
-            background: #fff;
-            border: none;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .light-theme .bento-card {
+            background: #fff;
+        }
+        body.dark-theme {
+            background-color: var(--bg-color) !important;
         }
         /* 调整 Bento 布局适配首页内容 */
         .bento-grid {
@@ -40,7 +48,7 @@
         }
     </style>
 </head>
-<body>
+<body class="dark-theme">
     <nav class="navbar navbar-expand-lg navbar-dark mb-4">
         <div class="container-fluid px-4">
             <a class="navbar-brand d-flex align-items-center" href="/">
@@ -48,7 +56,13 @@
                 DeepSOC <span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">v<span id="version-info">1.1.0</span></span>
             </a>
             
-            <div class="d-flex align-items-center">
+            <div class="d-flex align-items-center gap-2">
+                <!-- 主题切换按钮 -->
+                <button class="btn btn-outline-light btn-sm" data-theme-switcher>
+                    <i class="bi bi-sun-fill theme-icon-light"></i>
+                    <i class="bi bi-moon-fill theme-icon-dark"></i>
+                </button>
+                
                 <!-- 登录前显示 -->
                 <a href="/login" class="btn btn-primary btn-sm d-none" id="login-nav-item">登录</a>
 
@@ -161,6 +175,7 @@
     <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
 
     <script src="/static/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
     <script src="/static/js/index.js"></script>
     
     <!-- 内联脚本处理 Admin 链接显示 -->
