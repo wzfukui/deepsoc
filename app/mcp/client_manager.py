@@ -38,7 +38,31 @@ class MCPClient:
                 # Wait for the 'endpoint' event
                 for event in client.events():
                     if event.event == 'endpoint':
-                        self.post_endpoint = urljoin(self.base_url, event.data)
+                        # FIX: Combine base_url query params with the new endpoint
+                        # Use urllib.parse to handle this cleanly
+                        from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
+
+                        # Join paths first
+                        full_url = urljoin(self.base_url, event.data)
+                        
+                        # Parse original base_url to get its query params
+                        base_parsed = urlparse(self.base_url)
+                        base_qs = parse_qs(base_parsed.query)
+                        
+                        # Parse the new full_url to get its query params (if any from event.data)
+                        new_parsed = urlparse(full_url)
+                        new_qs = parse_qs(new_parsed.query)
+                        
+                        # Merge queries: keep original base_url params if missing in new
+                        final_qs = new_qs.copy()
+                        for k, v in base_qs.items():
+                            if k not in final_qs:
+                                final_qs[k] = v
+                        
+                        # Reconstruct URL
+                        final_query = urlencode(final_qs, doseq=True)
+                        self.post_endpoint = urlunparse(new_parsed._replace(query=final_query))
+
                         self.is_connected = True
                         logger.info(f"MCP Client {self.server_key} connected. Endpoint: {self.post_endpoint}")
                         # In a real implementation, we might need to keep this thread alive 
