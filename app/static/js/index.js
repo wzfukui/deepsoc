@@ -225,35 +225,46 @@ async function fetchEvents() {
 function checkAuth() {
     const token = localStorage.getItem('access_token') || getCookie('access_token');
     
-    // 根据登录状态更新UI
-    updateAuthUI(!!token);
+    // 如果没有本地token，直接更新UI为未登录状态，避免等待请求
+    if (!token) {
+        updateAuthUI(false);
+        return;
+    }
+
+    // 有Token，先假设已登录（避免闪烁），后台验证
+    // 但为了保险，这里不立即updateAuthUI(true)，而是等待 check-auth 结果
+    // 或者可以先显示 User Nav，如果失败再切回 Login Nav。
+    // 为了防止 "Loop" 现象中用户误以为已登录，我们等待 verify。
     
-    if (token) {
-        // 验证token有效性
-        fetch('/api/auth/check-auth', {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            },
-            credentials: 'include'  // 包含凭证
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.authenticated) {
-                // token无效，清除本地存储，更新UI
-                localStorage.removeItem('access_token');
-                localStorage.removeItem('user_info');
-                document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-                updateAuthUI(false);
-            }
-        })
-        .catch(error => {
-            console.error('验证认证状态错误:', error);
+    // 验证token有效性
+    fetch('/api/auth/check-auth', {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        },
+        credentials: 'include'  // 包含凭证
+    })
+    .then(response => {
+        if (response.ok) return response.json();
+        throw new Error('Network response was not ok.');
+    })
+    .then(data => {
+        if (data.authenticated) {
+            updateAuthUI(true);
+        } else {
+            // token无效，清除本地存储，更新UI
+            console.log('Check auth failed, clearing token');
             localStorage.removeItem('access_token');
             localStorage.removeItem('user_info');
             document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
             updateAuthUI(false);
-        });
-    }
+        }
+    })
+    .catch(error => {
+        console.error('验证认证状态错误:', error);
+        // 网络错误等情况，暂时认为是未登录，或者保持当前状态？
+        // 安全起见，视为未登录
+        updateAuthUI(false);
+    });
 }
 
 // 更新UI以反映认证状态
