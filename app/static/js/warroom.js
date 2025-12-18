@@ -589,7 +589,13 @@ function initEventListeners() {
     
     // 事件详情按钮点击事件
     if (elements.eventDetailsBtn) {
-        console.log('%c[事件监听] 绑定详情按钮点击事件', 'color: #4CAF50;');
+        console.log('%c[事件监听] 绑定详情按钮点击事件', 'color: #4CAF50;', elements.eventDetailsBtn);
+        
+        // 移除可能存在的旧监听器
+        const newBtn = elements.eventDetailsBtn.cloneNode(true);
+        elements.eventDetailsBtn.parentNode.replaceChild(newBtn, elements.eventDetailsBtn);
+        elements.eventDetailsBtn = newBtn;
+        
         elements.eventDetailsBtn.addEventListener('click', (e) => {
             console.log('%c[按钮点击] 详情按钮被点击', 'background: #4CAF50; color: white; padding: 2px 5px;');
             e.preventDefault();
@@ -601,7 +607,13 @@ function initEventListeners() {
     }
 
     if (elements.eventTreeBtn) {
-        console.log('%c[事件监听] 绑定关系树按钮点击事件', 'color: #4CAF50;');
+        console.log('%c[事件监听] 绑定关系树按钮点击事件', 'color: #4CAF50;', elements.eventTreeBtn);
+        
+        // 移除可能存在的旧监听器
+        const newTreeBtn = elements.eventTreeBtn.cloneNode(true);
+        elements.eventTreeBtn.parentNode.replaceChild(newTreeBtn, elements.eventTreeBtn);
+        elements.eventTreeBtn = newTreeBtn;
+        
         elements.eventTreeBtn.addEventListener('click', (e) => {
             console.log('%c[按钮点击] 关系树按钮被点击', 'background: #4CAF50; color: white; padding: 2px 5px;');
             e.preventDefault();
@@ -708,28 +720,27 @@ function initEventListeners() {
     elements.laterExecution.addEventListener('click', closeAllModals);
     
     // 浮动输入框控制
-    if (elements.chatFloatToggle) {
-        elements.chatFloatToggle.addEventListener('click', () => {
-            expandChatInput();
-        });
-    }
-    
     if (elements.chatInputCollapseBtn) {
-        elements.chatInputCollapseBtn.addEventListener('click', () => {
-            collapseChatInput();
+        elements.chatInputCollapseBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // 防止触发拖动
+            
+            if (elements.chatInputFloat.classList.contains('collapsed')) {
+                expandChatInput();
+            } else {
+                collapseChatInput();
+            }
         });
     }
     
-    // 点击header时，如果已折叠则展开
+    // 点击折叠状态的整个元素时展开
     if (elements.chatInputFloat) {
-        const header = elements.chatInputFloat.querySelector('.chat-input-header');
-        if (header) {
-            header.addEventListener('click', () => {
-                if (elements.chatInputFloat.classList.contains('collapsed')) {
-                    expandChatInput();
-                }
-            });
-        }
+        elements.chatInputFloat.addEventListener('click', (e) => {
+            // 只有在折叠状态下点击整个元素才展开
+            if (elements.chatInputFloat.classList.contains('collapsed')) {
+                e.stopPropagation();
+                expandChatInput();
+            }
+        });
     }
 }
 
@@ -2503,8 +2514,18 @@ function showExecutionNotification(execution) {
 function expandChatInput() {
     if (elements.chatInputFloat) {
         elements.chatInputFloat.classList.remove('collapsed');
-        elements.chatFloatToggle.classList.add('hidden');
-        elements.userInput.focus();
+        // 恢复到中心位置
+        elements.chatInputFloat.style.left = '50%';
+        elements.chatInputFloat.style.top = '';
+        elements.chatInputFloat.style.bottom = '20px';
+        elements.chatInputFloat.style.transform = 'translateX(-50%)';
+        
+        // 聚焦输入框
+        setTimeout(() => {
+            if (elements.userInput) {
+                elements.userInput.focus();
+            }
+        }, 300);
     }
 }
 
@@ -2512,7 +2533,6 @@ function expandChatInput() {
 function collapseChatInput() {
     if (elements.chatInputFloat) {
         elements.chatInputFloat.classList.add('collapsed');
-        elements.chatFloatToggle.classList.remove('hidden');
     }
 }
 
@@ -2521,7 +2541,116 @@ function initChatInputFloat() {
     // 默认展开
     if (elements.chatInputFloat) {
         elements.chatInputFloat.classList.remove('collapsed');
-        elements.chatFloatToggle.classList.add('hidden');
+        
+        // 初始化拖动功能
+        initChatInputDrag();
+    }
+}
+
+// 初始化聊天输入框拖动功能
+function initChatInputDrag() {
+    if (!elements.chatInputFloat) return;
+    
+    let isDragging = false;
+    let currentX;
+    let currentY;
+    let initialX;
+    let initialY;
+    let xOffset = 0;
+    let yOffset = 0;
+    
+    const header = elements.chatInputFloat.querySelector('.chat-input-header');
+    if (!header) return;
+    
+    // 只在header区域可以拖动
+    header.addEventListener('mousedown', dragStart);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', dragEnd);
+    
+    // 触摸事件支持
+    header.addEventListener('touchstart', dragStart);
+    document.addEventListener('touchmove', drag);
+    document.addEventListener('touchend', dragEnd);
+    
+    function dragStart(e) {
+        // 如果是折叠状态,整个元素都可以拖动
+        if (elements.chatInputFloat.classList.contains('collapsed')) {
+            // 折叠状态下点击应该展开,不拖动
+            return;
+        }
+        
+        // 防止点击折叠按钮时触发拖动
+        if (e.target.closest('.chat-input-collapse-btn')) {
+            return;
+        }
+        
+        if (e.type === 'touchstart') {
+            initialX = e.touches[0].clientX - xOffset;
+            initialY = e.touches[0].clientY - yOffset;
+        } else {
+            initialX = e.clientX - xOffset;
+            initialY = e.clientY - yOffset;
+        }
+        
+        isDragging = true;
+        elements.chatInputFloat.classList.add('dragging');
+    }
+    
+    function drag(e) {
+        if (!isDragging) return;
+        
+        e.preventDefault();
+        
+        if (e.type === 'touchmove') {
+            currentX = e.touches[0].clientX - initialX;
+            currentY = e.touches[0].clientY - initialY;
+        } else {
+            currentX = e.clientX - initialX;
+            currentY = e.clientY - initialY;
+        }
+        
+        xOffset = currentX;
+        yOffset = currentY;
+        
+        // 限制在视口内
+        const rect = elements.chatInputFloat.getBoundingClientRect();
+        const maxX = window.innerWidth - rect.width;
+        const maxY = window.innerHeight - rect.height;
+        
+        let finalX = xOffset;
+        let finalY = yOffset;
+        
+        if (finalX < -window.innerWidth / 2 + rect.width / 2) {
+            finalX = -window.innerWidth / 2 + rect.width / 2;
+        }
+        if (finalX > window.innerWidth / 2 - rect.width / 2) {
+            finalX = window.innerWidth / 2 - rect.width / 2;
+        }
+        if (finalY < -window.innerHeight + rect.height + 20) {
+            finalY = -window.innerHeight + rect.height + 20;
+        }
+        if (finalY > -20) {
+            finalY = -20;
+        }
+        
+        setTranslate(finalX, finalY, elements.chatInputFloat);
+    }
+    
+    function dragEnd(e) {
+        if (!isDragging) return;
+        
+        initialX = currentX;
+        initialY = currentY;
+        
+        isDragging = false;
+        elements.chatInputFloat.classList.remove('dragging');
+    }
+    
+    function setTranslate(xPos, yPos, el) {
+        // 移除居中的transform,使用绝对定位
+        el.style.left = `calc(50% + ${xPos}px)`;
+        el.style.bottom = `calc(20px - ${yPos}px)`;
+        el.style.transform = 'translateX(-50%)';
     }
 }
 

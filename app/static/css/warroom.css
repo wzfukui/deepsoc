@@ -109,6 +109,53 @@ body {
     flex-shrink: 0;
 }
 
+/* Cyber Button Styles - For event header buttons */
+.cyber-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.cyber-btn:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
+}
+
+.cyber-btn:active {
+    transform: scale(0.98);
+}
+
+.cyber-btn.small {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
+}
+
+.cyber-btn i {
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+
+.cyber-btn.secondary {
+    background-color: transparent;
+    border-color: var(--border-color);
+}
+
+.cyber-btn.secondary:hover {
+    background-color: var(--card-bg);
+}
+
 /* Chat Area */
 .chat-messages {
     flex: 1;
@@ -460,11 +507,26 @@ body {
     justify-content: center;
     background-color: var(--card-bg);
     border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
 }
 
 .control-btn:hover {
     background-color: var(--hover-bg);
     border-color: var(--text-secondary);
+    color: var(--text-primary);
+}
+
+.control-btn i {
+    font-size: 1rem;
+    color: var(--text-primary);
 }
 
 /* Theme Switcher */
@@ -500,12 +562,13 @@ body.light-theme .theme-icon-dark {
     display: inline-block;
 }
 
-/* Floating Chat Input - Bottom Right */
+/* Floating Chat Input - Bottom Center */
 .chat-input-float {
     position: fixed;
     bottom: 20px;
-    right: 260px; /* Right of sidebar */
-    width: 500px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
     max-width: calc(100vw - 300px);
     background-color: var(--card-bg);
     border: 1px solid var(--border-color);
@@ -514,12 +577,28 @@ body.light-theme .theme-icon-dark {
     z-index: 1000;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     backdrop-filter: blur(20px);
+    cursor: move; /* 指示可以拖动 */
 }
 
 .chat-input-float.collapsed {
-    width: 200px;
-    max-height: 48px;
+    width: 60px;
+    height: 60px;
+    max-height: 60px;
     overflow: hidden;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--accent-blue), #0056b3);
+    border: none;
+    box-shadow: 0 4px 16px rgba(0, 112, 243, 0.4);
+    transform: translateX(-50%);
+}
+
+.chat-input-float.collapsed:hover {
+    transform: translateX(-50%) scale(1.05);
+    box-shadow: 0 6px 24px rgba(0, 112, 243, 0.6);
 }
 
 .chat-input-float.collapsed .chat-input-body {
@@ -528,7 +607,21 @@ body.light-theme .theme-icon-dark {
 
 .chat-input-float.collapsed .chat-input-header {
     cursor: pointer;
-    padding: 0.75rem 1rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: white;
+    font-size: 1.5rem;
+}
+
+.chat-input-float.collapsed .chat-input-title {
+    display: none;
+}
+
+.chat-input-float.collapsed .chat-input-collapse-btn {
+    color: white;
+    font-size: 1.5rem;
+    padding: 0;
 }
 
 .chat-input-header {
@@ -608,38 +701,9 @@ body.light-theme .theme-icon-dark {
     line-height: 1.4;
 }
 
-/* Floating Toggle Button */
+/* Floating Toggle Button - 已废弃,使用折叠状态的聊天框代替 */
 .chat-float-toggle {
-    position: fixed;
-    bottom: 20px;
-    right: 260px; /* Right of sidebar */
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent-blue), #0056b3);
-    border: none;
-    color: white;
-    font-size: 1.5rem;
-    cursor: pointer;
-    box-shadow: 0 4px 16px rgba(0, 112, 243, 0.4);
-    z-index: 999;
-    display: flex; 
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s;
-}
-
-.chat-float-toggle:hover {
-    transform: scale(1.1);
-    box-shadow: 0 6px 24px rgba(0, 112, 243, 0.6);
-}
-
-.chat-float-toggle:active {
-    transform: scale(0.95);
-}
-
-.chat-float-toggle.hidden {
-    display: none;
+    display: none !important;
 }
 
 /* Responsive */
@@ -648,12 +712,23 @@ body.light-theme .theme-icon-dark {
         display: none; /* Hide side panel on mobile for now or make it a drawer */
     }
     
-    .chat-input-float,
-    .chat-float-toggle {
-        right: 20px;
-    }
-    
     .chat-input-float {
         max-width: calc(100vw - 40px);
+        width: calc(100vw - 40px);
     }
+}
+
+/* 拖动时的样式 */
+.chat-input-float.dragging {
+    cursor: grabbing;
+    transition: none;
+    opacity: 0.9;
+}
+
+.chat-input-float:not(.collapsed) .chat-input-header {
+    cursor: move;
+}
+
+.chat-input-float:not(.collapsed) .chat-input-body {
+    cursor: default;
 }
