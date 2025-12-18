@@ -247,6 +247,41 @@ body.dark-theme .text-muted {
 }
 
 /* 现有样式保留 */
+/* Event List Items - Enhanced for both themes */
+.list-group-item {
+    margin-bottom: 0.75rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.list-group-item h5 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: inherit;
+}
+
+.list-group-item p {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.list-group-item small {
+    font-size: 0.85rem;
+    opacity: 0.8;
+}
+
+.list-group-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
 .event-card {
     margin-bottom: 15px;
     cursor: pointer;

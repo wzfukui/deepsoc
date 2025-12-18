@@ -30,6 +30,36 @@ body.dark-theme {
     -webkit-font-smoothing: antialiased;
 }
 
+/* Event List Improvements for Dark Theme */
+body.dark-theme .list-group-item {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+}
+
+body.dark-theme .list-group-item:hover {
+    background-color: var(--card-hover-bg);
+    border-color: var(--text-secondary);
+    transform: translateX(4px);
+}
+
+body.dark-theme .list-group-item h5 {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+body.dark-theme .list-group-item p {
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+body.dark-theme .list-group-item small {
+    color: var(--text-muted);
+}
+
 a {
     text-decoration: none;
 }
