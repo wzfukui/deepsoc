@@ -112,9 +112,14 @@ class MCPClient:
             
         try:
             response = requests.post(self.post_endpoint, json=payload, headers=headers, timeout=30)
-            response.raise_for_status()
-            data = response.json()
             
+            # Debugging: Print response if not JSON
+            try:
+                data = response.json()
+            except Exception as json_err:
+                logger.error(f"MCP Response is not JSON. Status: {response.status_code}. Content: {response.text[:500]}")
+                raise json_err
+
             if 'error' in data:
                 raise Exception(f"MCP JSON-RPC Error: {data['error']}")
                 

@@ -1,14 +1,35 @@
 /* Bootstrap Modal Dark Mode Override */
 .modal-content {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
+    background-color: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
 }
 
 .modal-header, .modal-footer {
-    border-color: var(--border-color);
+    border-color: var(--border-color) !important;
 }
 
 .btn-close {
     filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* Ensure labels in modal are visible */
+.modal-content label, .modal-content .form-label, .modal-content .form-text {
+    color: var(--text-primary) !important;
+}
+
+.modal-content .text-muted {
+    color: var(--text-secondary) !important;
+}
+
+/* Ensure inputs are dark with light text */
+.modal-content .form-control, .modal-content .form-select {
+    background-color: #000 !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-color) !important;
+}
+
+.modal-content .form-control:focus, .modal-content .form-select:focus {
+    background-color: #0a0a0a !important;
+    color: var(--text-primary) !important;
 }
