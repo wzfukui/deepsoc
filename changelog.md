@@ -1,5 +1,23 @@
 # Changelog
 
+## 2025-12-18 (Update 2)
+### Bug Fixes
+- **MCP Client call_tool 参数修复**:
+  - 修复了 FastMCP `call_tool()` 方法的调用方式错误，参数应该作为 `dict` 传入而不是 `**kwargs` 展开。
+  - 更新 `app/mcp/client_manager.py` 中的 `_call_tool_async()` 方法，使用正确的签名 `call_tool(name, arguments)`。
+  
+- **测试脚本优化** (`tests/test_mcp_client.py`):
+  - 重写测试脚本，增加优雅的会话关闭错误处理（405 错误是良性的，不影响功能）。
+  - 降低 httpx/mcp/fastmcp 库的日志级别，减少冗余输出。
+  - 新增 `--call-tool` 参数支持工具调用测试。
+  - 优化输出格式，显示工具参数详情和 JSON 格式化结果。
+
+### 说明
+- **405 Method Not Allowed 问题解释**：某些 MCP 服务器（Streamable HTTP 模式）不支持 DELETE 方法关闭会话，FastMCP 在退出时会尝试发送 DELETE 请求导致 405 错误。这是良性错误，不影响功能。Cherry Studio 等工具也会遇到同样问题，只是隐藏了错误日志。
+- 代码现在优雅处理这个错误，测试输出更加清晰。
+
+---
+
 ## 2025-12-18
 ### Bug Fixes
 - **MCP Client 重构 (Use FastMCP)**:
