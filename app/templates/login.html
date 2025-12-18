@@ -10,69 +10,57 @@
     <link rel="stylesheet" href="/static/css/admin_dark.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
+        /* Force high contrast for Login Page explicitly */
         .login-page {
-            background-color: var(--bg-color);
+            background-color: #000 !important;
             min-height: 100vh;
             display: flex;
             align-items: center;
         }
         .login-card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            background-color: #111 !important;
+            border: 1px solid #333 !important;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6) !important;
         }
         .login-card .card-header {
             background-color: transparent;
-            border-bottom: 1px solid var(--border-color);
-            padding: 20px;
-            text-align: center;
+            border-bottom: 1px solid #333 !important;
         }
-        .login-card .card-header h4 {
-            color: var(--text-primary);
-            font-weight: 600;
+        .login-title, h4, label {
+            color: #ededed !important;
         }
-        .brand-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 2rem;
+        .form-control {
+            background-color: #000 !important;
+            border: 1px solid #333 !important;
+            color: #fff !important;
         }
-        .brand-logo {
-            margin-right: 16px;
-            transition: all 0.5s ease;
-            filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.1));
+        .form-control::placeholder {
+            color: #666 !important;
         }
-        .brand-logo:hover {
-            transform: scale(1.1) rotate(5deg);
+        .form-control:focus {
+            background-color: #000 !important;
+            border-color: #fff !important;
+            box-shadow: 0 0 0 2px rgba(255,255,255,0.2) !important;
+            color: #fff !important;
         }
-        .brand-text h1 {
-            color: var(--text-primary);
-            font-weight: 700;
-            letter-spacing: -0.02em;
-        }
-        .brand-text p {
-            color: var(--text-secondary);
-        }
-        
         .input-group-text {
-            background-color: var(--hover-bg);
-            border-color: var(--border-color);
-            color: var(--text-secondary);
+            background-color: #222 !important;
+            border-color: #333 !important;
+            color: #888 !important;
         }
-        
-        /* Button overrides */
         .btn-primary {
-            background-color: var(--text-primary);
-            border-color: var(--text-primary);
-            color: #000;
+            background-color: #ededed !important;
+            color: #000 !important;
+            border: none !important;
             font-weight: 600;
         }
         .btn-primary:hover {
-            background-color: #fff;
-            border-color: #fff;
+            background-color: #fff !important;
+            color: #000 !important;
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+        }
+        .brand-logo {
+            filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.1));
         }
     </style>
 </head>
@@ -80,11 +68,11 @@
     <div class="container">
         <div class="row justify-content-center">
             <div class="col-md-4">
-                <div class="brand-container">
-                    <img src="/static/images/logo/logo.png" alt="DeepSOC Logo" class="brand-logo logo-img" style="max-width: 64px;">
+                <div class="brand-container d-flex align-items-center justify-content-center mb-4">
+                    <img src="/static/images/logo/logo.png" alt="DeepSOC Logo" class="brand-logo logo-img me-3" style="max-width: 64px;">
                     <div class="brand-text">
-                        <h1 class="login-title mb-0">DeepSOC</h1>
-                        <p class="mb-0 small">AI Security Operations</p>
+                        <h1 class="login-title mb-0 fw-bold" style="font-size: 2rem;">DeepSOC</h1>
+                        <p class="mb-0 small text-muted">AI Security Operations</p>
                     </div>
                 </div>
                 
@@ -95,17 +83,17 @@
                         
                         <form id="login-form">
                             <div class="mb-3">
-                                <label for="username" class="form-label small text-muted text-uppercase fw-bold">Username</label>
+                                <label for="username" class="form-label small text-uppercase fw-bold text-muted">Username</label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="bi bi-person"></i></span>
-                                    <input type="text" class="form-control" id="username" required>
+                                    <input type="text" class="form-control" id="username" required placeholder="admin">
                                 </div>
                             </div>
                             <div class="mb-4">
-                                <label for="password" class="form-label small text-muted text-uppercase fw-bold">Password</label>
+                                <label for="password" class="form-label small text-uppercase fw-bold text-muted">Password</label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="bi bi-key"></i></span>
-                                    <input type="password" class="form-control" id="password" required>
+                                    <input type="password" class="form-control" id="password" required placeholder="••••••••">
                                 </div>
                             </div>
                             <div class="d-grid">
