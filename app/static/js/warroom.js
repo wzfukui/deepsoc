@@ -2552,6 +2552,8 @@ function initChatInputDrag() {
     if (!elements.chatInputFloat) return;
     
     let isDragging = false;
+    let hasMoved = false; // 标记是否真正移动过
+    let startX, startY; // 记录开始位置
     let currentX;
     let currentY;
     let initialX;
@@ -2559,23 +2561,51 @@ function initChatInputDrag() {
     let xOffset = 0;
     let yOffset = 0;
     
+    const DRAG_THRESHOLD = 5; // 拖动阈值，小于这个距离认为是点击
+    
     const header = elements.chatInputFloat.querySelector('.chat-input-header');
     if (!header) return;
     
-    // 只在header区域可以拖动
+    // 展开状态：只在header区域可以拖动
     header.addEventListener('mousedown', dragStart);
+    header.addEventListener('touchstart', dragStart);
+    
+    // 折叠状态：整个元素都可以拖动
+    elements.chatInputFloat.addEventListener('mousedown', dragStartCollapsed);
+    elements.chatInputFloat.addEventListener('touchstart', dragStartCollapsed);
+    
+    // 全局事件监听
     document.addEventListener('mousemove', drag);
     document.addEventListener('mouseup', dragEnd);
-    
-    // 触摸事件支持
-    header.addEventListener('touchstart', dragStart);
     document.addEventListener('touchmove', drag);
     document.addEventListener('touchend', dragEnd);
     
+    function dragStartCollapsed(e) {
+        // 只有折叠状态才处理
+        if (!elements.chatInputFloat.classList.contains('collapsed')) {
+            return;
+        }
+        
+        // 记录开始位置
+        if (e.type === 'touchstart') {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            initialX = e.touches[0].clientX - xOffset;
+            initialY = e.touches[0].clientY - yOffset;
+        } else {
+            startX = e.clientX;
+            startY = e.clientY;
+            initialX = e.clientX - xOffset;
+            initialY = e.clientY - yOffset;
+        }
+        
+        isDragging = true;
+        hasMoved = false;
+    }
+    
     function dragStart(e) {
-        // 如果是折叠状态,整个元素都可以拖动
+        // 展开状态下的拖动（只在header上）
         if (elements.chatInputFloat.classList.contains('collapsed')) {
-            // 折叠状态下点击应该展开,不拖动
             return;
         }
         
@@ -2585,38 +2615,55 @@ function initChatInputDrag() {
         }
         
         if (e.type === 'touchstart') {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
             initialX = e.touches[0].clientX - xOffset;
             initialY = e.touches[0].clientY - yOffset;
         } else {
+            startX = e.clientX;
+            startY = e.clientY;
             initialX = e.clientX - xOffset;
             initialY = e.clientY - yOffset;
         }
         
         isDragging = true;
-        elements.chatInputFloat.classList.add('dragging');
+        hasMoved = false;
     }
     
     function drag(e) {
         if (!isDragging) return;
         
-        e.preventDefault();
-        
+        let clientX, clientY;
         if (e.type === 'touchmove') {
-            currentX = e.touches[0].clientX - initialX;
-            currentY = e.touches[0].clientY - initialY;
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
         } else {
-            currentX = e.clientX - initialX;
-            currentY = e.clientY - initialY;
+            clientX = e.clientX;
+            clientY = e.clientY;
         }
+        
+        // 计算移动距离
+        const deltaX = Math.abs(clientX - startX);
+        const deltaY = Math.abs(clientY - startY);
+        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        
+        // 如果移动距离超过阈值，标记为真正的拖动
+        if (distance > DRAG_THRESHOLD) {
+            hasMoved = true;
+            e.preventDefault(); // 防止默认行为
+            elements.chatInputFloat.classList.add('dragging');
+        }
+        
+        if (!hasMoved) return;
+        
+        currentX = clientX - initialX;
+        currentY = clientY - initialY;
         
         xOffset = currentX;
         yOffset = currentY;
         
         // 限制在视口内
         const rect = elements.chatInputFloat.getBoundingClientRect();
-        const maxX = window.innerWidth - rect.width;
-        const maxY = window.innerHeight - rect.height;
-        
         let finalX = xOffset;
         let finalY = yOffset;
         
@@ -2639,10 +2686,20 @@ function initChatInputDrag() {
     function dragEnd(e) {
         if (!isDragging) return;
         
+        // 如果是折叠状态且没有真正拖动（只是点击），则展开
+        if (elements.chatInputFloat.classList.contains('collapsed') && !hasMoved) {
+            isDragging = false;
+            hasMoved = false;
+            elements.chatInputFloat.classList.remove('dragging');
+            expandChatInput();
+            return;
+        }
+        
         initialX = currentX;
         initialY = currentY;
         
         isDragging = false;
+        hasMoved = false;
         elements.chatInputFloat.classList.remove('dragging');
     }
     

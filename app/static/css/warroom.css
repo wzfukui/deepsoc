@@ -577,7 +577,6 @@ body.light-theme .theme-icon-dark {
     z-index: 1000;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     backdrop-filter: blur(20px);
-    cursor: move; /* 指示可以拖动 */
 }
 
 .chat-input-float.collapsed {
@@ -586,7 +585,7 @@ body.light-theme .theme-icon-dark {
     max-height: 60px;
     overflow: hidden;
     border-radius: 50%;
-    cursor: pointer;
+    cursor: move; /* 折叠状态可拖动 */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -594,11 +593,18 @@ body.light-theme .theme-icon-dark {
     border: none;
     box-shadow: 0 4px 16px rgba(0, 112, 243, 0.4);
     transform: translateX(-50%);
+    user-select: none; /* 防止拖动时选中文本 */
 }
 
 .chat-input-float.collapsed:hover {
     transform: translateX(-50%) scale(1.05);
     box-shadow: 0 6px 24px rgba(0, 112, 243, 0.6);
+}
+
+.chat-input-float.collapsed.dragging {
+    cursor: grabbing;
+    transform: translateX(-50%) scale(0.95);
+    box-shadow: 0 8px 32px rgba(0, 112, 243, 0.8);
 }
 
 .chat-input-float.collapsed .chat-input-body {
