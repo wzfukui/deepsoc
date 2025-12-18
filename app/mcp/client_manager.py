@@ -65,16 +65,9 @@ class MCPClientManager:
             MCPTool.query.filter_by(server_id=server.id).delete()
             
             for tool in tools_list:
-                # Handle parameter schema extraction dynamically
-                input_schema = {}
-                if hasattr(tool, 'inputSchema'):
-                    input_schema = tool.inputSchema
-                elif hasattr(tool, 'parameters'):
-                    # Handle if parameters is Pydantic model or dict
-                    if isinstance(tool.parameters, dict):
-                        input_schema = tool.parameters
-                    elif hasattr(tool.parameters, 'model_json_schema'):
-                        input_schema = tool.parameters.model_json_schema()
+                # Based on MCP spec and fastmcp behavior:
+                # tool.inputSchema contains the JSON schema for arguments
+                input_schema = getattr(tool, 'inputSchema', {})
                 
                 # Ensure input_schema is a dict (json serializable)
                 if not isinstance(input_schema, dict):
