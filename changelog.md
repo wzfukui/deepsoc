@@ -1,5 +1,15 @@
 # Changelog
 
+## 2025-12-17 (Update 3)
+### Bug Fixes & UI Polish
+- **UI 对比度修复 (Dark Mode Polish)**:
+  - 修复了 `admin_dark.css` 和 `login.html` 在深色模式下的文字对比度问题，确保输入框、按钮和 Modal 弹窗内容清晰可见。
+  - 为 Modal 弹窗强制应用深色背景和高对比度文字样式，解决 MCP 添加/编辑窗口文字不可见的问题。
+- **Login Loop 修复**:
+  - 修复了 `index.js` 中的登录重定向循环 (`auto-redirect loop`) 问题。增加了异步鉴权等待逻辑，防止在鉴权未完成时错误判断为未登录状态。
+- **MCP Sync 修复**:
+  - 修复了 MCP Server URL 包含 Query Parameters (如 Token) 时，同步工具失败的问题。
+
 ## 2025-12-17 (Update 2)
 ### UI/UX 优化：Clean Corporate Dark Mode (Admin Interface)
 - **新建管理后台主题** (`admin_dark.css`)：
