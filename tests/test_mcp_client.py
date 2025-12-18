@@ -5,7 +5,7 @@ import sys
 import logging
 import requests
 import sseclient
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse, urlunparse, parse_qs, urlencode
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -31,7 +31,29 @@ class TestMCPClient:
             
             for event in client.events():
                 if event.event == 'endpoint':
-                    self.post_endpoint = urljoin(self.base_url, event.data)
+                    # Logic from MCPClient to preserve query params
+                    
+                    # Join paths first
+                    full_url = urljoin(self.base_url, event.data)
+                    
+                    # Parse original base_url to get its query params
+                    base_parsed = urlparse(self.base_url)
+                    base_qs = parse_qs(base_parsed.query)
+                    
+                    # Parse the new full_url to get its query params
+                    new_parsed = urlparse(full_url)
+                    new_qs = parse_qs(new_parsed.query)
+                    
+                    # Merge queries
+                    final_qs = new_qs.copy()
+                    for k, v in base_qs.items():
+                        if k not in final_qs:
+                            final_qs[k] = v
+                    
+                    # Reconstruct URL
+                    final_query = urlencode(final_qs, doseq=True)
+                    self.post_endpoint = urlunparse(new_parsed._replace(query=final_query))
+
                     self.is_connected = True
                     logger.info(f"Connected! POST Endpoint: {self.post_endpoint}")
                     return True
@@ -79,8 +101,48 @@ class TestMCPClient:
             
         try:
             response = requests.post(self.post_endpoint, json=payload, headers=headers, timeout=30)
-            response.raise_for_status()
-            data = response.json()
+            
+            # Check for SSE response
+            content_type = response.headers.get('Content-Type', '')
+            if 'text/event-stream' in content_type:
+                logger.info("Response is SSE, parsing events...")
+                # We need to parse the SSE response to find the 'message' event with the JSON payload
+                # requests.post result might not be streamable if we didn't set stream=True?
+                # Actually, requests buffers by default, so we can pass response.content to a line iterator or similar?
+                # sseclient-py expects a stream-like object (iterator of bytes or string).
+                
+                # Let's treat it as a stream
+                client = sseclient.SSEClient(response)
+                for event in client.events():
+                    if event.event == 'message':
+                        try:
+                            data = json.loads(event.data)
+                            return data.get('result')
+                        except json.JSONDecodeError as e:
+                            logger.error(f"Failed to decode JSON from SSE message: {e}")
+                            logger.error(f"Data: {event.data}")
+                            return None
+                return None
+
+            try:
+                data = response.json()
+            except Exception as json_err:
+                # If it's not JSON, and we haven't handled it as SSE yet (maybe content-type was wrong), check content
+                logger.error(f"MCP Response is not JSON. Status: {response.status_code}. Content: {response.text[:500]}")
+                
+                # Fallback: try to parse as SSE if text looks like it
+                if 'event: message' in response.text:
+                    logger.info("Content looks like SSE, trying to parse manually...")
+                    for line in response.iter_lines(decode_unicode=True):
+                         if line.startswith('data: '):
+                             json_str = line[6:]
+                             try:
+                                 data = json.loads(json_str)
+                                 return data.get('result')
+                             except:
+                                 pass
+                raise json_err
+
             if 'error' in data:
                 logger.error(f"JSON-RPC Error: {data['error']}")
                 return None
@@ -101,9 +163,7 @@ def main():
     token = None
     if "?token=" in base_url:
         base_url_part, token_part = base_url.split("?token=")
-        base_url = base_url  # Keep full URL for SSE usually, or split if needed by library. 
-        # requests handles params in url fine. 
-        # But for auth header logic above:
+        # base_url = base_url # Keep full URL
         token = token_part
     
     client = TestMCPClient(base_url)
@@ -122,19 +182,9 @@ def main():
         print(f"Found {len(tools)} tools:")
         for t in tools:
             print(f"  - {t['name']}: {t.get('description', 'No description')}")
-            print(f"    Schema: {json.dumps(t.get('inputSchema'), ensure_ascii=False)}")
+            # print(f"    Schema: {json.dumps(t.get('inputSchema'), ensure_ascii=False)}")
     else:
         print("Failed to list tools.")
-        
-    # 3. Call Tool (Example)
-    # You can customize this part to call a specific tool if you know the name
-    # For now we just list them. To test call, uncomment below and set tool name.
-    
-    # tool_name = "block_ip" 
-    # args = {"ip": "1.2.3.4"}
-    # print(f"\n--- Calling Tool: {tool_name} ---")
-    # result = client.call_tool(tool_name, args)
-    # print(f"Result: {json.dumps(result, ensure_ascii=False, indent=2)}")
 
 if __name__ == "__main__":
     main()

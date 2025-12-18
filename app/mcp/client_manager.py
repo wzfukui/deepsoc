@@ -111,13 +111,55 @@ class MCPClient:
             headers['Authorization'] = f"Bearer {self.auth_token}"
             
         try:
-            response = requests.post(self.post_endpoint, json=payload, headers=headers, timeout=30)
+            # Enable streaming to handle SSE responses
+            response = requests.post(self.post_endpoint, json=payload, headers=headers, timeout=30, stream=True)
             
-            # Debugging: Print response if not JSON
+            # Check for SSE response
+            content_type = response.headers.get('Content-Type', '')
+            if 'text/event-stream' in content_type:
+                logger.info(f"MCP Response is SSE. Content-Type: {content_type}")
+                client = sseclient.SSEClient(response)
+                for event in client.events():
+                    if event.event == 'message':
+                        try:
+                            # Parse JSON from data field
+                            data = json.loads(event.data)
+                            if 'result' in data:
+                                return data.get('result', {})
+                            elif 'error' in data:
+                                raise Exception(f"MCP JSON-RPC Error: {data['error']}")
+                            # Keep looking if this message doesn't have result/error?
+                            # Standard MCP: one message per request usually.
+                            return data.get('result', {})
+                        except json.JSONDecodeError as e:
+                            logger.error(f"Failed to decode JSON from SSE message: {e}")
+                            logger.error(f"Data: {event.data}")
+                            raise e
+                raise Exception("SSE stream ended without valid response")
+
+            # Standard JSON handling
             try:
                 data = response.json()
             except Exception as json_err:
-                logger.error(f"MCP Response is not JSON. Status: {response.status_code}. Content: {response.text[:500]}")
+                # Handle encoding explicitly for logging to avoid mojibake
+                try:
+                    content_str = response.content.decode('utf-8', errors='replace')
+                except:
+                    content_str = str(response.content) # Fallback
+                
+                logger.error(f"MCP Response is not JSON. Status: {response.status_code}. Content: {content_str[:1000]}")
+                
+                # Fallback: check if content looks like SSE even if header is wrong
+                if 'event: message' in content_str:
+                    try:
+                        import re
+                        match = re.search(r'data: ({.*})', content_str)
+                        if match:
+                             data = json.loads(match.group(1))
+                             return data.get('result', {})
+                    except:
+                        pass
+                
                 raise json_err
 
             if 'error' in data:
