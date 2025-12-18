@@ -23,6 +23,8 @@ alembic>=1.12.0
 # 安全工具集成
 requests>=2.31.0
 aiohttp>=3.9.0
+fastmcp>=2.14.1
+mcp>=1.24.0
 
 # 工具和实用程序
 pyyaml>=6.0.1
