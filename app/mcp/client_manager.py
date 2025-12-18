@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import json
 from fastmcp import Client
 from app.models.models import db, MCPServer, MCPTool
 
@@ -7,14 +8,7 @@ logger = logging.getLogger(__name__)
 
 class MCPClientManager:
     _instance = None
-    _clients = {} # server_key -> FastMCP Client instance (if we need to cache them, but they are async context managers)
-    # Actually, FastMCP Client is designed to be used in 'async with'.
-    # If we want to keep connections open (SSE), we need to maintain the client instance and its loop/task.
-    # However, for this integration in a synchronous Flask app, maybe we just connect-on-demand for now,
-    # OR we use a global event loop thread?
-    # Given the previous implementation was request/response based (mostly), 
-    # and FastMCP Client can handle single requests if initialized properly.
-    # But wait, FastMCP client uses `httpx` and `anyio`.
+    _clients = {}
 
     def __new__(cls):
         if cls._instance is None:
@@ -26,24 +20,11 @@ class MCPClientManager:
         try:
             return asyncio.run(coro)
         except RuntimeError:
-            # If there is already an event loop running (e.g. uvicorn/asyncio based server), 
-            # we should use it? But we are in Flask (WSGI usually).
-            # If we are in a thread with an existing loop?
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             return loop.run_until_complete(coro)
 
     async def _list_tools_async(self, url, auth_token=None):
-        # FastMCP Client constructor takes 'auth' but expects httpx.Auth or similar?
-        # Let's check signature again: auth: "httpx.Auth | Literal['oauth'] | str | None"
-        # If it's a bearer token, we might need to pass it as header?
-        # FastMCP documentation says 'auth' param. If string, what does it do?
-        # If we look at fastmcp source or docs...
-        # Let's try passing auth token if provided.
-        # But wait, the Huawei URL has token in query param.
-        # If auth_token is separate, we might need to use it.
-        # For now, let's assume URL handles auth if token is in it.
-        
         async with Client(url) as client:
             return await client.list_tools()
 
@@ -71,11 +52,7 @@ class MCPClientManager:
         try:
             # Prepare URL
             url = server.base_url
-            if server.auth_token and 'token=' not in url:
-                # If auth token exists and not in URL, maybe append or header?
-                # For now let's rely on user putting token in URL or handle basic cases.
-                pass
-
+            
             # Run async list_tools
             tools_list = self._run_async(self._list_tools_async(url))
             
@@ -88,10 +65,21 @@ class MCPClientManager:
             MCPTool.query.filter_by(server_id=server.id).delete()
             
             for tool in tools_list:
-                # FastMCP tool object has name, description, parameters (model)
-                # We need to convert pydantic model to dict schema
-                input_schema = tool.parameters.model_json_schema() if tool.parameters else {}
+                # Handle parameter schema extraction dynamically
+                input_schema = {}
+                if hasattr(tool, 'inputSchema'):
+                    input_schema = tool.inputSchema
+                elif hasattr(tool, 'parameters'):
+                    # Handle if parameters is Pydantic model or dict
+                    if isinstance(tool.parameters, dict):
+                        input_schema = tool.parameters
+                    elif hasattr(tool.parameters, 'model_json_schema'):
+                        input_schema = tool.parameters.model_json_schema()
                 
+                # Ensure input_schema is a dict (json serializable)
+                if not isinstance(input_schema, dict):
+                    input_schema = {}
+
                 new_tool = MCPTool(
                     server_id=server.id,
                     name=tool.name,
@@ -141,16 +129,8 @@ class MCPClientManager:
         # Execute
         result = self._run_async(self._call_tool_async(server.base_url, tool_name, arguments))
         
-        # Result might be a text, or object?
-        # FastMCP client.call_tool returns the result directly.
-        # If it's a CallToolResult from mcp, we might need to extract content.
-        # FastMCP wrapper usually returns the parsed value if possible.
-        # Let's inspect the result type if needed, but usually it returns the list of content blocks.
-        
-        # If result is list of TextContent/ImageContent etc.
-        # We should format it for the agent.
+        # Helper to extract text content
         if isinstance(result, list):
-            # Concatenate text blocks?
             final_text = ""
             for block in result:
                 if hasattr(block, 'text'):

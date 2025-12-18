@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import json
 from fastmcp import Client
 
 # Configure logging to see what's happening
@@ -29,22 +30,39 @@ async def test_fastmcp_client():
                 for tool in tools:
                     # FastMCP Tool object
                     print(f"  - {tool.name}: {tool.description}")
-                    if tool.parameters:
-                        # tool.parameters is a pydantic model class
-                        schema = tool.parameters.model_json_schema()
-                        # print(f"    Schema: {schema}") 
+                    
+                    # 检查 parameters 属性
+                    # FastMCP 2.x 的 Tool 对象可能结构有所不同
+                    # 在 mcp 库中，Tool 对象的 inputSchema 属性存储了参数定义
+                    # 而 FastMCP 对此进行了封装，可能是 parameters, args_schema, 或者其他
+                    
+                    # 尝试打印对象的所有属性以进行调试
+                    # print(f"    Tool Attributes: {dir(tool)}")
+                    
+                    if hasattr(tool, 'inputSchema'):
+                        schema = tool.inputSchema
+                        # print(f"    Schema (inputSchema): {json.dumps(schema, ensure_ascii=False)}")
+                    elif hasattr(tool, 'parameters'):
+                         # 之前的代码假设是 parameters 并且是 Pydantic 模型
+                         # 如果是 dict，直接使用
+                         if isinstance(tool.parameters, dict):
+                             schema = tool.parameters
+                         elif hasattr(tool.parameters, 'model_json_schema'):
+                             schema = tool.parameters.model_json_schema()
+                         else:
+                             # print(f"    Parameters (unknown type): {type(tool.parameters)}")
+                             schema = {}
+                    else:
+                        print("    No parameters/schema found")
+                        schema = {}
+
             else:
                 print("No tools found.")
                 
-            # Example call (commented out)
-            # print("\n--- Calling Tool (Example) ---")
-            # result = await client.call_tool("tool_name", arg="value")
-            # print(f"Result: {result}")
-            
     except Exception as e:
         logger.error(f"Test failed: {e}")
-        # import traceback
-        # traceback.print_exc()
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     try:
