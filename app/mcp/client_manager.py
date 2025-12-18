@@ -67,7 +67,20 @@ class MCPClientManager:
             for tool in tools_list:
                 # Based on MCP spec and fastmcp behavior:
                 # tool.inputSchema contains the JSON schema for arguments
-                input_schema = getattr(tool, 'inputSchema', {})
+                
+                # Check for inputSchema (standard MCP) or fallback to parameters (FastMCP model)
+                if hasattr(tool, 'inputSchema'):
+                    input_schema = tool.inputSchema
+                elif hasattr(tool, 'parameters'):
+                    # FastMCP Tool object usually wraps Pydantic model in parameters
+                    if hasattr(tool.parameters, 'model_json_schema'):
+                        input_schema = tool.parameters.model_json_schema()
+                    elif isinstance(tool.parameters, dict):
+                        input_schema = tool.parameters
+                    else:
+                        input_schema = {}
+                else:
+                    input_schema = {}
                 
                 # Ensure input_schema is a dict (json serializable)
                 if not isinstance(input_schema, dict):
