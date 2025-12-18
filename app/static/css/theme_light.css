@@ -1,0 +1,166 @@
+/* Light Theme for DeepSOC */
+:root.light-theme {
+    /* Base Colors */
+    --bg-color: #ffffff;
+    --sidebar-bg: #f8f9fa;
+    --header-bg: rgba(255, 255, 255, 0.95);
+    --card-bg: #ffffff;
+    --card-hover-bg: #f8f9fa;
+    --hover-bg: #f0f0f0;
+    --border-color: #e0e0e0;
+    
+    /* Text Colors */
+    --text-primary: #1a1a1a;
+    --text-secondary: #666666;
+    --text-muted: #999999;
+    
+    /* Accent Colors */
+    --accent-primary: #1a1a1a;
+    --accent-blue: #0070f3;
+    --accent-success: #00C853;
+    --accent-warning: #f5a623;
+    --accent-danger: #e00000;
+    --accent-info: #00b4d8;
+    
+    /* Role Colors - Adjusted for light theme */
+    --role-captain-color: #0d6efd;
+    --role-manager-color: #0dcaf0;
+    --role-operator-color: #fd7e14;
+    --role-executor-color: #d63384;
+    --role-expert-color: #dc3545;
+    --role-user-color: #20c997;
+    --role-system-color: #6c757d;
+    
+    /* Warroom specific */
+    --warroom-message-bg: #f8f9fa;
+    --warroom-message-border: #e0e0e0;
+    --warroom-user-message-bg: #e8f4fd;
+    --warroom-system-message-bg: #f5f5f5;
+}
+
+/* Override body and main elements for light theme */
+body.light-theme {
+    background-color: var(--bg-color) !important;
+    color: var(--text-primary) !important;
+}
+
+.light-theme .dark-theme {
+    background-color: var(--bg-color) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Cards and panels */
+.light-theme .card,
+.light-theme .admin-sidebar,
+.light-theme .side-panel {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Input elements */
+.light-theme input,
+.light-theme textarea,
+.light-theme select,
+.light-theme .form-control {
+    background-color: var(--bg-color);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.light-theme input:focus,
+.light-theme textarea:focus,
+.light-theme select:focus,
+.light-theme .form-control:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 0.2rem rgba(0, 112, 243, 0.15);
+}
+
+/* Buttons */
+.light-theme .btn-primary {
+    background-color: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: white;
+}
+
+.light-theme .btn-primary:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+}
+
+/* Messages in warroom */
+.light-theme .message-content {
+    background-color: var(--warroom-message-bg);
+    border-color: var(--warroom-message-border);
+}
+
+.light-theme .message-user .message-content {
+    background-color: var(--warroom-user-message-bg);
+}
+
+.light-theme .message-system .message-content {
+    background-color: var(--warroom-system-message-bg);
+}
+
+/* Code blocks */
+.light-theme pre,
+.light-theme code {
+    background-color: #f5f5f5;
+    border-color: #e0e0e0;
+    color: #d73a49;
+}
+
+/* Modals */
+.light-theme .cyber-modal-content,
+.light-theme .modal-content {
+    background-color: var(--bg-color);
+    border-color: var(--border-color);
+}
+
+/* Toasts */
+.light-theme .toast {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Links */
+.light-theme a {
+    color: var(--accent-blue);
+}
+
+.light-theme a:hover {
+    color: #0056b3;
+}
+
+/* Scrollbars */
+.light-theme ::-webkit-scrollbar-track {
+    background: var(--bg-color);
+}
+
+.light-theme ::-webkit-scrollbar-thumb {
+    background: #cccccc;
+    border: 2px solid var(--bg-color);
+}
+
+.light-theme ::-webkit-scrollbar-thumb:hover {
+    background: #999999;
+}
+
+/* Tables */
+.light-theme table {
+    border-color: var(--border-color);
+}
+
+.light-theme .table {
+    color: var(--text-primary);
+}
+
+.light-theme .table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Badges */
+.light-theme .badge {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}

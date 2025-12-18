@@ -10,57 +10,62 @@
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="/static/css/admin_dark.css">
     <link rel="stylesheet" href="/static/css/warroom.css">
+    <link rel="stylesheet" href="/static/css/theme_light.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="dark-theme">
     <!-- 隐藏的事件ID数据元素 -->
     <div id="event-id-data" data-event-id="{{ event_id }}" style="display: none;"></div>
     
     <div class="warroom-container">
         <!-- 左侧主要内容区域 -->
         <div class="main-panel">
-            <!-- 顶部事件信息栏 -->
+            <!-- 顶部事件信息栏 - 优化的单行布局 -->
             <div class="event-header">
                 <div class="event-title">
-                    <div class="d-flex align-items-center">
-                        <a href="/">
-                            <img src="/static/images/logo/logo.png" alt="DeepSOC Logo" class="logo-img me-3" style="height: 36px;">
-                        </a>
-                        <h1 id="event-name">加载中...</h1>
-                        <button id="event-tree-btn" class="cyber-btn small ms-2" title="关系树">
-                            <i class="bi bi-diagram-3"></i>
-                        </button>
-                    </div>
-                    <div class="event-status-container">
-                        <div id="connection-status" class="status-connecting">连接中...</div>
-                        <!-- 执行任务指示器 -->
-                        <div id="execution-indicator" class="execution-indicator">
-                            <span class="execution-count">0</span>
-                            <span class="execution-icon"><i class="fas fa-tasks"></i></span>
-                        </div>
-                        <div id="event-status" class="event-status pending">
-                            <span class="status-indicator"></span>
-                            <span class="status-text">待处理</span>
-                        </div>
-                        <button id="event-details-btn" class="cyber-btn small">
-                            <span class="cyber-btn-text">详情</span>
-                        </button>
+                    <a href="/" class="d-flex align-items-center" style="flex-shrink: 0;">
+                        <img src="/static/images/logo/logo.png" alt="DeepSOC Logo" class="logo-img" style="height: 28px;">
+                    </a>
+                    <h1 id="event-name">加载中...</h1>
+                    <button id="event-tree-btn" class="cyber-btn small" title="关系树">
+                        <i class="bi bi-diagram-3"></i>
+                    </button>
+                </div>
+                
+                <div class="event-meta">
+                    <div class="event-meta-item" id="event-round">R1</div>
+                    <div class="event-meta-item" id="event-severity">--</div>
+                    <div id="event-status" class="event-status pending">
+                        <span class="status-indicator"></span>
+                        <span class="status-text">待处理</span>
                     </div>
                 </div>
-                <div class="event-meta">
-                    <div class="event-meta-item" id="event-id-display">ID: --</div>
-                    <div class="event-meta-item" id="event-round">轮次: 1</div>
-                    <div class="event-meta-item" id="event-source">来源: --</div>
-                    <div class="event-meta-item" id="event-severity">严重程度: --</div>
-                    <div class="event-meta-item" id="event-created">创建时间: --</div>
+                
+                <div class="event-status-container">
+                    <div id="connection-status" class="status-connecting">连接中...</div>
+                    <div id="execution-indicator" class="execution-indicator">
+                        <span class="execution-count">0</span>
+                        <span class="execution-icon"><i class="fas fa-tasks"></i></span>
+                    </div>
+                    <button id="event-details-btn" class="cyber-btn small">
+                        <span class="cyber-btn-text">详情</span>
+                    </button>
                 </div>
             </div>
             
-            <!-- 消息区域 -->
+            <!-- 消息区域 - 扩展到全屏 -->
             <div id="chat-messages" class="chat-messages"></div>
-            
-            <!-- 输入区域 -->
-            <div class="chat-input-container">
+        </div>
+        
+        <!-- 浮动输入区域 -->
+        <div id="chat-input-float" class="chat-input-float collapsed">
+            <div class="chat-input-header">
+                <span class="chat-input-title">💬 对话输入</span>
+                <button id="chat-input-collapse-btn" class="chat-input-collapse-btn" title="收起">
+                    <i class="bi bi-chevron-down"></i>
+                </button>
+            </div>
+            <div class="chat-input-body">
                 <div class="chat-input-wrapper">
                     <input type="text" id="user-input" class="chat-input" placeholder="输入消息... (使用@AI向AI助手提问)">
                     <button id="send-button" class="cyber-btn">
@@ -72,6 +77,11 @@
                 </div>
             </div>
         </div>
+        
+        <!-- 浮动按钮 - 用于展开输入框 -->
+        <button id="chat-float-toggle" class="chat-float-toggle" title="打开对话输入">
+            <i class="bi bi-chat-dots-fill"></i>
+        </button>
         
         <!-- 右侧面板 -->
         <div class="side-panel">
@@ -198,6 +208,15 @@
                 </div>
                 
                 <div class="control-buttons">
+                    <!-- 主题切换器 -->
+                    <div class="theme-switcher-container">
+                        <button id="theme-switcher" class="control-btn theme-switcher-btn">
+                            <i class="bi bi-sun-fill theme-icon-light"></i>
+                            <i class="bi bi-moon-fill theme-icon-dark"></i>
+                            <span class="theme-text">切换主题</span>
+                        </button>
+                    </div>
+                    
                     <button id="settings-btn" class="control-btn">
                         <i class="bi bi-gear-fill"></i>
                         <span>设置</span>
@@ -365,6 +384,7 @@
     <script src="/static/js/bootstrap.bundle.min.js"></script>
     <script src="/static/js/socket.io.min.js"></script>
     <script src="/static/js/marked.min.js"></script>
+    <script src="/static/js/theme-switcher.js"></script>
     <script src="/static/js/warroom.js"></script>
     
 </body>

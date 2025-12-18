@@ -46,11 +46,8 @@ const elements = {
     sendButton: document.getElementById('send-button'),
     eventName: document.getElementById('event-name'),
     eventStatus: document.getElementById('event-status'),
-    eventIdDisplay: document.getElementById('event-id-display'),
     eventRound: document.getElementById('event-round'),
-    eventSource: document.getElementById('event-source'),
     eventSeverity: document.getElementById('event-severity'),
-    eventCreated: document.getElementById('event-created'),
     currentRound: document.getElementById('current-round'),
     taskCount: document.getElementById('task-count'),
     actionCount: document.getElementById('action-count'),
@@ -58,6 +55,9 @@ const elements = {
     modeSwitch: document.getElementById('mode-switch'),
     eventDetailsBtn: document.getElementById('event-details-btn'),
     eventTreeBtn: document.getElementById('event-tree-btn'),
+    chatInputFloat: document.getElementById('chat-input-float'),
+    chatFloatToggle: document.getElementById('chat-float-toggle'),
+    chatInputCollapseBtn: document.getElementById('chat-input-collapse-btn'),
     eventTreeModal: document.getElementById('event-tree-modal'),
     eventTreeContainer: document.getElementById('event-tree-container'),
     eventDetailsModal: document.getElementById('event-details-modal'),
@@ -94,6 +94,8 @@ let currentSourceMessageId = null;
 document.addEventListener('DOMContentLoaded', function() {
     // 检查用户是否已登录
     checkAuth();
+    
+    // 主题已由theme-switcher.js自动加载
     
     // 初始化事件
     initWarRoom();
@@ -162,6 +164,9 @@ function initWarRoom() {
     
     // 初始化事件监听器
     initEventListeners();
+    
+    // 初始化浮动输入框
+    initChatInputFloat();
     
     // 加载事件详情
     fetchEventDetails();
@@ -584,11 +589,27 @@ function initEventListeners() {
     
     // 事件详情按钮点击事件
     if (elements.eventDetailsBtn) {
-        elements.eventDetailsBtn.addEventListener('click', showEventDetailsModal);
+        console.log('%c[事件监听] 绑定详情按钮点击事件', 'color: #4CAF50;');
+        elements.eventDetailsBtn.addEventListener('click', (e) => {
+            console.log('%c[按钮点击] 详情按钮被点击', 'background: #4CAF50; color: white; padding: 2px 5px;');
+            e.preventDefault();
+            e.stopPropagation();
+            showEventDetailsModal();
+        });
+    } else {
+        console.error('%c[事件监听] 详情按钮元素未找到', 'color: #F44336;');
     }
 
     if (elements.eventTreeBtn) {
-        elements.eventTreeBtn.addEventListener('click', showEventTreeModal);
+        console.log('%c[事件监听] 绑定关系树按钮点击事件', 'color: #4CAF50;');
+        elements.eventTreeBtn.addEventListener('click', (e) => {
+            console.log('%c[按钮点击] 关系树按钮被点击', 'background: #4CAF50; color: white; padding: 2px 5px;');
+            e.preventDefault();
+            e.stopPropagation();
+            showEventTreeModal();
+        });
+    } else {
+        console.error('%c[事件监听] 关系树按钮元素未找到', 'color: #F44336;');
     }
     
     // 关闭模态框按钮点击事件
@@ -608,6 +629,8 @@ function initEventListeners() {
     elements.settingsBtn.addEventListener('click', () => {
         showToast('设置功能即将推出', 'info');
     });
+    
+    // 主题切换按钮点击事件 - 已由theme-switcher.js处理
     
     // 退出按钮点击事件
     elements.logoutBtn.addEventListener('click', () => {
@@ -683,6 +706,31 @@ function initEventListeners() {
     
     // 稍后处理按钮点击事件
     elements.laterExecution.addEventListener('click', closeAllModals);
+    
+    // 浮动输入框控制
+    if (elements.chatFloatToggle) {
+        elements.chatFloatToggle.addEventListener('click', () => {
+            expandChatInput();
+        });
+    }
+    
+    if (elements.chatInputCollapseBtn) {
+        elements.chatInputCollapseBtn.addEventListener('click', () => {
+            collapseChatInput();
+        });
+    }
+    
+    // 点击header时，如果已折叠则展开
+    if (elements.chatInputFloat) {
+        const header = elements.chatInputFloat.querySelector('.chat-input-header');
+        if (header) {
+            header.addEventListener('click', () => {
+                if (elements.chatInputFloat.classList.contains('collapsed')) {
+                    expandChatInput();
+                }
+            });
+        }
+    }
 }
 
 // 加入作战室
@@ -750,11 +798,10 @@ async function fetchEventDetails() {
 // 显示事件详情
 function displayEventDetails(event) {
     elements.eventName.textContent = event.event_name || '未命名事件';
-    elements.eventIdDisplay.textContent = `ID: ${event.event_id}`;
-    elements.eventRound.textContent = `轮次: ${event.current_round || 1}`;
-    elements.eventSource.textContent = `来源: ${event.source || '未知'}`;
-    elements.eventSeverity.textContent = `严重程度: ${getSeverityText(event.severity)}`;
-    elements.eventCreated.textContent = `创建时间: ${formatDateTime(event.created_at)}`;
+    elements.eventRound.textContent = `R${event.current_round || 1}`;
+    elements.eventRound.title = `当前轮次: ${event.current_round || 1}`;
+    elements.eventSeverity.textContent = getSeverityBadge(event.severity);
+    elements.eventSeverity.title = `严重程度: ${getSeverityText(event.severity)}`;
     
     // 更新事件状态
     const statusElement = elements.eventStatus;
@@ -764,7 +811,9 @@ function displayEventDetails(event) {
     statusText.textContent = getStatusText(event.event_status);
     
     // 更新当前轮次
-    elements.currentRound.textContent = event.current_round || 1;
+    if (elements.currentRound) {
+        elements.currentRound.textContent = event.current_round || 1;
+    }
 }
 
 // 获取事件消息列表
@@ -1949,6 +1998,16 @@ function getSeverityText(severity) {
     return severityMap[severity] || severity || '未知';
 }
 
+function getSeverityBadge(severity) {
+    const badgeMap = {
+        'high': '🔴 高',
+        'medium': '🟡 中',
+        'low': '🟢 低'
+    };
+    
+    return badgeMap[severity] || '⚪ 未知';
+}
+
 function extractMessageData(content) {
     if (!content) {
         return content;
@@ -2440,7 +2499,37 @@ function showExecutionNotification(execution) {
     showToast(`新的执行任务: ${commandName}`, 'info');
 }
 
+// 展开浮动输入框
+function expandChatInput() {
+    if (elements.chatInputFloat) {
+        elements.chatInputFloat.classList.remove('collapsed');
+        elements.chatFloatToggle.classList.add('hidden');
+        elements.userInput.focus();
+    }
+}
+
+// 折叠浮动输入框
+function collapseChatInput() {
+    if (elements.chatInputFloat) {
+        elements.chatInputFloat.classList.add('collapsed');
+        elements.chatFloatToggle.classList.remove('hidden');
+    }
+}
+
+// 初始化浮动输入框状态（默认展开）
+function initChatInputFloat() {
+    // 默认展开
+    if (elements.chatInputFloat) {
+        elements.chatInputFloat.classList.remove('collapsed');
+        elements.chatFloatToggle.classList.add('hidden');
+    }
+}
+
+// 主题切换功能已由theme-switcher.js提供
+
 // 将函数暴露到全局作用域
 window.showMessageSourceModal = showMessageSourceModal;
 window.copyMessageSource = copyMessageSource;
 window.toggleExecutionContext = toggleExecutionContext;
+window.expandChatInput = expandChatInput;
+window.collapseChatInput = collapseChatInput;
