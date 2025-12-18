@@ -1,5 +1,11 @@
 # Changelog
 
+## 2025-12-18
+### Bug Fixes
+- **MCP Client 兼容性增强**:
+  - 修复了 MCP Client 在连接阶段处理非标准 SSE 响应（直接返回 JSON）时的兼容性问题。
+  - 增强了对 POST 请求返回 SSE 流格式响应的解析支持，解决了华为 USG 防火墙 MCP Server 同步失败的问题。
+
 ## 2025-12-17 (Update 3)
 ### Bug Fixes & UI Polish
 - **UI 对比度修复 (Dark Mode Polish)**:
