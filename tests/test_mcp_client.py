@@ -27,6 +27,15 @@ class TestMCPClient:
         
         try:
             response = requests.get(self.base_url, stream=True, headers=headers, timeout=10)
+            
+            # Handle case where server returns JSON directly (not standard SSE handshake)
+            content_type = response.headers.get('Content-Type', '').lower()
+            if 'application/json' in content_type:
+                logger.warning(f"Connect returned JSON, not SSE. Falling back to using base_url as endpoint.")
+                self.post_endpoint = self.base_url
+                self.is_connected = True
+                return True
+
             client = sseclient.SSEClient(response)
             
             for event in client.events():
@@ -100,23 +109,22 @@ class TestMCPClient:
             headers['Authorization'] = f"Bearer {self.auth_token}"
             
         try:
-            response = requests.post(self.post_endpoint, json=payload, headers=headers, timeout=30)
+            response = requests.post(self.post_endpoint, json=payload, headers=headers, timeout=30, stream=True)
             
             # Check for SSE response
             content_type = response.headers.get('Content-Type', '')
             if 'text/event-stream' in content_type:
-                logger.info("Response is SSE, parsing events...")
-                # We need to parse the SSE response to find the 'message' event with the JSON payload
-                # requests.post result might not be streamable if we didn't set stream=True?
-                # Actually, requests buffers by default, so we can pass response.content to a line iterator or similar?
-                # sseclient-py expects a stream-like object (iterator of bytes or string).
-                
-                # Let's treat it as a stream
+                logger.info(f"Response is SSE. Content-Type: {content_type}")
                 client = sseclient.SSEClient(response)
                 for event in client.events():
                     if event.event == 'message':
                         try:
                             data = json.loads(event.data)
+                            if 'result' in data:
+                                return data.get('result')
+                            elif 'error' in data:
+                                logger.error(f"JSON-RPC Error: {data['error']}")
+                                return None
                             return data.get('result')
                         except json.JSONDecodeError as e:
                             logger.error(f"Failed to decode JSON from SSE message: {e}")
@@ -127,10 +135,9 @@ class TestMCPClient:
             try:
                 data = response.json()
             except Exception as json_err:
-                # If it's not JSON, and we haven't handled it as SSE yet (maybe content-type was wrong), check content
                 logger.error(f"MCP Response is not JSON. Status: {response.status_code}. Content: {response.text[:500]}")
                 
-                # Fallback: try to parse as SSE if text looks like it
+                # Fallback: check if content looks like SSE even if header is wrong
                 if 'event: message' in response.text:
                     logger.info("Content looks like SSE, trying to parse manually...")
                     for line in response.iter_lines(decode_unicode=True):

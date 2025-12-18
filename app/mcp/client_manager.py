@@ -33,6 +33,15 @@ class MCPClient:
                 
                 # We need to stream the response
                 response = requests.get(self.base_url, stream=True, headers=headers, timeout=10)
+                
+                # Handle case where server returns JSON directly (not standard SSE handshake)
+                content_type = response.headers.get('Content-Type', '').lower()
+                if 'application/json' in content_type:
+                    logger.warning(f"MCP Client {self.server_key}: Connect returned JSON, not SSE. Falling back to using base_url as endpoint.")
+                    self.post_endpoint = self.base_url
+                    self.is_connected = True
+                    return
+
                 client = sseclient.SSEClient(response)
                 
                 # Wait for the 'endpoint' event
