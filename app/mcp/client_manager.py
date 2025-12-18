@@ -29,6 +29,18 @@ class MCPClientManager:
             return await client.list_tools()
 
     async def _call_tool_async(self, url, tool_name, arguments):
+        """
+        执行 MCP 工具调用
+        
+        注意：FastMCP Client.call_tool() 的签名是：
+            call_tool(name: str, arguments: dict | None = None, ...)
+        参数应该作为 dict 传入，而不是展开为 **kwargs
+        
+        Args:
+            url: MCP 服务器 URL
+            tool_name: 工具名称
+            arguments: 工具参数字典
+        """
         # 使用 Client(url) 上下文管理器时，fastmcp 会自动处理连接和断开
         # 如果服务器不支持 DELETE，断开时可能会报错，我们需要捕获这个错误
         # 以免影响工具调用的结果返回
@@ -37,8 +49,8 @@ class MCPClientManager:
         client = Client(url)
         try:
             await client.__aenter__()
-            # Call tool
-            result = await client.call_tool(tool_name, **arguments)
+            # Call tool - 注意：arguments 作为 dict 传入，不是 **arguments
+            result = await client.call_tool(tool_name, arguments)
             return result
         except Exception as e:
             logger.error(f"Error calling tool {tool_name}: {e}")
