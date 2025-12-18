@@ -122,26 +122,29 @@
     </div>
 
     <!-- Toast Container -->
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
-        <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-header">
-                <strong class="me-auto" id="toastTitle">通知</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
-            </div>
-            <div class="toast-body" id="toastBody"></div>
-        </div>
-    </div>
+    <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
 
     <script src="/static/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', loadServers);
 
-        function showToast(message, type='info') {
-            const toastEl = document.getElementById('liveToast');
-            document.getElementById('toastBody').textContent = message;
-            document.getElementById('toastTitle').textContent = type === 'error' ? '错误' : '成功';
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toast-container');
+            const toastEl = document.createElement('div');
+            const bgClass = type === 'error' ? 'danger' : (type === 'success' ? 'success' : 'info');
+            toastEl.className = `toast align-items-center text-white bg-${bgClass} border-0`;
+            toastEl.setAttribute('role', 'alert');
+            toastEl.setAttribute('aria-live', 'assertive');
+            toastEl.setAttribute('aria-atomic', 'true');
+            toastEl.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>`;
+            toastContainer.appendChild(toastEl);
             const toast = new bootstrap.Toast(toastEl);
             toast.show();
+            toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
         }
 
         async function loadServers() {
@@ -193,7 +196,8 @@
 
         function getStatusBadgeColor(status) {
             switch(status) {
-                case 'enabled': return 'success';
+                case 'enabled':
+                case 'active': return 'success';
                 case 'disabled': return 'secondary';
                 case 'error': return 'danger';
                 default: return 'warning';
@@ -202,7 +206,8 @@
         
         function getStatusLabel(status) {
              switch(status) {
-                case 'enabled': return '已启用';
+                case 'enabled':
+                case 'active': return '已启用';
                 case 'disabled': return '已停用';
                 case 'error': return '异常';
                 default: return status;
@@ -255,10 +260,10 @@
                 const result = await res.json();
                 if (result.status === 'success') {
                     bootstrap.Modal.getInstance(document.getElementById('editServerModal')).hide();
-                    showToast('保存成功');
+                    showToast('保存成功', 'success');
                     loadServers();
                 } else {
-                    alert(result.message);
+                    showToast(result.message, 'error');
                 }
             } catch (e) {
                 console.error(e);
@@ -273,10 +278,10 @@
                 const res = await fetch(`/api/mcp/servers/${id}`, { method: 'DELETE' });
                 const result = await res.json();
                 if (result.status === 'success') {
-                    showToast('删除成功');
+                    showToast('删除成功', 'success');
                     loadServers();
                 } else {
-                    alert(result.message);
+                    showToast(result.message, 'error');
                 }
             } catch (e) {
                 alert('删除失败');
@@ -293,10 +298,10 @@
                 const res = await fetch(`/api/mcp/servers/${id}/sync`, { method: 'POST' });
                 const result = await res.json();
                 if (result.status === 'success') {
-                    showToast(result.message);
+                    showToast(result.message, 'success');
                     loadServers();
                 } else {
-                    alert('同步失败: ' + result.message);
+                    showToast('同步失败: ' + result.message, 'error');
                 }
             } catch (e) {
                 alert('同步请求失败');
