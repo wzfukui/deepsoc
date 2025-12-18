@@ -890,13 +890,26 @@ function addMessage(message) {
     };
 
     let baseClass = 'message';
+    
+    // Determine role-based styling
     if (roleClasses[message.message_from]) {
         baseClass += ' ' + roleClasses[message.message_from];
-    } else if (message.message_category === 'engineer_chat') {
-        if (message.sender_type === 'user') baseClass += ' message-user';
-        else if (message.sender_type === 'ai') baseClass += ' message-expert'; // AI Assistant uses expert style
+    }
+    
+    // Determine alignment based on message type
+    if (message.message_from === 'system') {
+        // System messages stay centered (handled by CSS)
+        // No additional class needed
+    } else if (message.message_from === 'user' || 
+               (message.message_category === 'engineer_chat' && message.sender_type === 'user')) {
+        // User messages: right-aligned
+        baseClass += ' message-user';
+    } else if (message.message_category === 'engineer_chat' && message.sender_type === 'ai') {
+        // AI assistant messages: left-aligned, expert style
+        baseClass += ' message-expert message-agent';
     } else {
-        baseClass += ' message-user'; // Fallback
+        // All other messages (agents, etc.): left-aligned
+        baseClass += ' message-agent';
     }
 
     if (message.pending) baseClass += ' message-pending';
@@ -961,6 +974,7 @@ function addMessage(message) {
         
         // 2. LLM Response (Output - Tasks/Actions/Commands)
         else if (message.message_type === 'llm_response' || (message.message_type && message.message_type.includes('_llm_response'))) {
+            console.log('[消息渲染] LLM Response数据:', data);
             const respType = data.response_type;
             const respText = data.response_text || '';
             
@@ -1939,19 +1953,37 @@ function extractMessageData(content) {
     if (!content) {
         return content;
     }
+    
+    let result = content;
+    
+    // First level: handle string or object
     if (typeof content === 'string') {
         try {
             const parsed = JSON.parse(content);
             if (parsed && typeof parsed === 'object') {
-                return (parsed.data !== undefined) ? parsed.data : parsed;
+                result = (parsed.data !== undefined) ? parsed.data : parsed;
             }
         } catch (e) {
             return content;
         }
     } else if (typeof content === 'object') {
-        return (content.data !== undefined) ? content.data : content;
+        result = (content.data !== undefined) ? content.data : content;
     }
-    return content;
+    
+    // Second level: check if result.text is a JSON string and parse it
+    if (result && typeof result === 'object' && result.text && typeof result.text === 'string') {
+        try {
+            const parsedText = JSON.parse(result.text);
+            if (parsedText && typeof parsedText === 'object') {
+                return parsedText;
+            }
+        } catch (e) {
+            // If text is not valid JSON, return result as-is
+            return result;
+        }
+    }
+    
+    return result;
 }
 
 function getMessageTypeText(type) {

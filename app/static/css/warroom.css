@@ -146,6 +146,11 @@ body {
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+/* Agent Messages - Left Aligned (Default for all agents) */
+.message-agent {
+    align-self: flex-start;
+}
+
 /* User Messages - Right Aligned */
 .message-user {
     align-self: flex-end;
