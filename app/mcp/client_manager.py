@@ -3,8 +3,7 @@ import logging
 import threading
 import time
 import requests
-import sseclient
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse, urlunparse, parse_qs, urlencode
 from app.models.models import db, MCPServer, MCPTool
 from app.services.llm_service import call_llm
 
@@ -20,6 +19,22 @@ class MCPClient:
         self.session_id = None
         self.is_connected = False
         
+    def _parse_sse_line(self, line):
+        """Helper to parse a single SSE line"""
+        if not line:
+            return None, None
+        
+        # Handle bytes vs string
+        if isinstance(line, bytes):
+            line = line.decode('utf-8', errors='replace')
+            
+        parts = line.split(':', 1)
+        if len(parts) == 2:
+            field = parts[0].strip()
+            value = parts[1].strip()
+            return field, value
+        return None, None
+
     def connect(self):
         """
         Connects to the MCP server.
@@ -42,43 +57,49 @@ class MCPClient:
                     self.is_connected = True
                     return
 
-                client = sseclient.SSEClient(response)
+                # Manual SSE Parsing
+                current_event = {}
+                for line in response.iter_lines():
+                    if not line:
+                        # Empty line -> End of event
+                        if current_event:
+                            if current_event.get('event') == 'endpoint':
+                                # Found endpoint event
+                                endpoint_url = current_event.get('data')
+                                
+                                # Resolve URL logic
+                                full_url = urljoin(self.base_url, endpoint_url)
+                                base_parsed = urlparse(self.base_url)
+                                base_qs = parse_qs(base_parsed.query)
+                                new_parsed = urlparse(full_url)
+                                new_qs = parse_qs(new_parsed.query)
+                                final_qs = new_qs.copy()
+                                for k, v in base_qs.items():
+                                    if k not in final_qs:
+                                        final_qs[k] = v
+                                final_query = urlencode(final_qs, doseq=True)
+                                self.post_endpoint = urlunparse(new_parsed._replace(query=final_query))
+
+                                self.is_connected = True
+                                logger.info(f"MCP Client {self.server_key} connected. Endpoint: {self.post_endpoint}")
+                                return
+                            current_event = {}
+                        continue
+
+                    field, value = self._parse_sse_line(line)
+                    if field:
+                        if field == 'data':
+                            if 'data' in current_event:
+                                current_event['data'] += "\n" + value
+                            else:
+                                current_event['data'] = value
+                        else:
+                            current_event[field] = value
                 
-                # Wait for the 'endpoint' event
-                for event in client.events():
-                    if event.event == 'endpoint':
-                        # FIX: Combine base_url query params with the new endpoint
-                        # Use urllib.parse to handle this cleanly
-                        from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
-
-                        # Join paths first
-                        full_url = urljoin(self.base_url, event.data)
-                        
-                        # Parse original base_url to get its query params
-                        base_parsed = urlparse(self.base_url)
-                        base_qs = parse_qs(base_parsed.query)
-                        
-                        # Parse the new full_url to get its query params (if any from event.data)
-                        new_parsed = urlparse(full_url)
-                        new_qs = parse_qs(new_parsed.query)
-                        
-                        # Merge queries: keep original base_url params if missing in new
-                        final_qs = new_qs.copy()
-                        for k, v in base_qs.items():
-                            if k not in final_qs:
-                                final_qs[k] = v
-                        
-                        # Reconstruct URL
-                        final_query = urlencode(final_qs, doseq=True)
-                        self.post_endpoint = urlunparse(new_parsed._replace(query=final_query))
-
-                        self.is_connected = True
-                        logger.info(f"MCP Client {self.server_key} connected. Endpoint: {self.post_endpoint}")
-                        # In a real implementation, we might need to keep this thread alive 
-                        # to receive other events, but for now we just want the endpoint.
-                        # Some servers might require the connection to stay open.
-                        # For this POC, we'll break after getting the endpoint.
-                        break
+                # If we exit loop without finding endpoint (and not JSON fallback), connection failed
+                if not self.is_connected:
+                     logger.warning(f"MCP Client {self.server_key}: SSE stream ended without 'endpoint' event.")
+                     
             except Exception as e:
                 logger.error(f"Failed to connect to MCP server {self.server_key}: {e}")
                 self.is_connected = False
@@ -124,26 +145,43 @@ class MCPClient:
             response = requests.post(self.post_endpoint, json=payload, headers=headers, timeout=30, stream=True)
             
             # Check for SSE response
-            content_type = response.headers.get('Content-Type', '')
+            content_type = response.headers.get('Content-Type', '').lower()
             if 'text/event-stream' in content_type:
                 logger.info(f"MCP Response is SSE. Content-Type: {content_type}")
-                client = sseclient.SSEClient(response)
-                for event in client.events():
-                    if event.event == 'message':
-                        try:
-                            # Parse JSON from data field
-                            data = json.loads(event.data)
-                            if 'result' in data:
-                                return data.get('result', {})
-                            elif 'error' in data:
-                                raise Exception(f"MCP JSON-RPC Error: {data['error']}")
-                            # Keep looking if this message doesn't have result/error?
-                            # Standard MCP: one message per request usually.
-                            return data.get('result', {})
-                        except json.JSONDecodeError as e:
-                            logger.error(f"Failed to decode JSON from SSE message: {e}")
-                            logger.error(f"Data: {event.data}")
-                            raise e
+                
+                current_event = {}
+                for line in response.iter_lines():
+                    if not line:
+                         # End of event
+                         if current_event:
+                             if current_event.get('event') == 'message':
+                                 try:
+                                     data_str = current_event.get('data')
+                                     data = json.loads(data_str)
+                                     
+                                     if 'result' in data:
+                                         return data.get('result', {})
+                                     elif 'error' in data:
+                                         raise Exception(f"MCP JSON-RPC Error: {data['error']}")
+                                     
+                                     # Keep looking? standard MCP usually has one message response
+                                     return data.get('result', {})
+                                 except json.JSONDecodeError as e:
+                                     logger.error(f"Failed to decode JSON from SSE message: {e}")
+                                     raise e
+                             current_event = {}
+                         continue
+
+                    field, value = self._parse_sse_line(line)
+                    if field:
+                        if field == 'data':
+                            if 'data' in current_event:
+                                current_event['data'] += "\n" + value
+                            else:
+                                current_event['data'] = value
+                        else:
+                            current_event[field] = value
+                            
                 raise Exception("SSE stream ended without valid response")
 
             # Standard JSON handling
