@@ -1,5 +1,25 @@
 # Changelog
 
+## 2025-12-19
+### Bug Fixes
+- **作战室模态框显示问题修复**:
+  - 修复了作战室页面中"详情"和"关系树"按钮点击后没有UI变化、没有弹窗的问题。
+  - 问题原因：`.cyber-modal` CSS样式定义不完整，缺少关键的定位和显示属性（`position: fixed`, `display: none`, `z-index`等）。
+  - 解决方案：
+    - 完善了 `.cyber-modal` 的CSS定义，添加了完整的定位、尺寸和层级样式。
+    - 添加了 `.cyber-modal-close` 关闭按钮样式。
+    - 添加了 `.cyber-modal-body` 内容区域样式。
+    - 补充了模态框内容相关的所有样式：
+      - 事件详情相关样式（`.event-detail-section`, `.event-summary-list`等）
+      - 事件关系树样式（`.event-tree-container`, `.event-tree-round`等）
+      - 角色历史样式（`.role-history-list`, `.role-history-item`等）
+      - 执行任务面板和模态框样式（`.execution-panel`, `.execution-modal`等）
+      - Markdown内容渲染样式（`.markdown-content`及其子元素）
+      - AI思考指示器动画样式（`.loading-dots`）
+  - 修改文件：`app/static/css/warroom.css`
+
+---
+
 ## 2025-12-18 (Update 2)
 ### Bug Fixes
 - **MCP Client call_tool 参数修复**:

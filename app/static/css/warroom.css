@@ -487,8 +487,18 @@ body {
 
 /* Modals */
 .cyber-modal {
+    display: none; /* 默认隐藏 */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background-color: rgba(0,0,0,0.8);
     backdrop-filter: blur(4px);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+    overflow-y: auto;
 }
 
 .cyber-modal-content {
@@ -496,17 +506,57 @@ body {
     border: 1px solid var(--border-color);
     border-radius: 12px;
     box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .cyber-modal-header {
     border-bottom: 1px solid var(--border-color);
     background-color: transparent;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
 }
 
 .cyber-modal-header h2 {
     color: var(--text-primary);
     font-size: 1.1rem;
     font-weight: 600;
+    margin: 0;
+}
+
+.cyber-modal-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.cyber-modal-close:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.cyber-modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1;
 }
 
 /* Control Buttons */
@@ -750,4 +800,671 @@ body.light-theme .theme-icon-dark {
 
 .chat-input-float:not(.collapsed) .chat-input-body {
     cursor: default;
+}
+
+/* 模态框内容样式 */
+
+/* 事件详情模态框 */
+.event-detail-section {
+    margin-bottom: 2rem;
+}
+
+.event-detail-section:last-child {
+    margin-bottom: 0;
+}
+
+.event-detail-section h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.event-message-detail,
+.event-context-detail {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 1rem;
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+.event-summary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.event-summary-item {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 1rem;
+}
+
+.event-summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.event-summary-round {
+    font-weight: 600;
+    color: var(--accent-blue);
+}
+
+.event-summary-time {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.event-summary-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+/* 事件关系树 */
+.event-tree-container {
+    color: var(--text-primary);
+}
+
+.event-tree-round {
+    margin-bottom: 1.5rem;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 1rem;
+}
+
+.event-tree-round:last-child {
+    margin-bottom: 0;
+}
+
+.event-tree-round-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--accent-blue);
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.event-tree-container ul {
+    list-style: none;
+    padding-left: 1.5rem;
+    margin: 0;
+}
+
+.event-tree-container li {
+    margin: 0.5rem 0;
+    position: relative;
+    color: var(--text-primary);
+}
+
+.event-tree-container li:before {
+    content: '├─';
+    position: absolute;
+    left: -1.5rem;
+    color: var(--border-color);
+}
+
+.event-tree-container li:last-child:before {
+    content: '└─';
+}
+
+.event-tree-status {
+    margin-left: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* 角色历史模态框 */
+.role-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.role-history-item {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 1rem;
+}
+
+.role-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.role-history-type {
+    font-weight: 600;
+    color: var(--accent-blue);
+    font-size: 0.9rem;
+}
+
+.role-history-time {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.role-history-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+.role-history-content pre {
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.75rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+}
+
+.role-history-markdown {
+    color: var(--text-primary);
+}
+
+/* 消息源码模态框 */
+.copy-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+}
+
+.copy-btn:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--text-secondary);
+}
+
+.copy-btn i {
+    font-size: 0.9rem;
+}
+
+/* 执行任务面板和模态框 */
+.execution-panel {
+    position: fixed;
+    right: -400px;
+    top: 0;
+    width: 400px;
+    height: 100vh;
+    background-color: var(--bg-color);
+    border-left: 1px solid var(--border-color);
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.3);
+    transition: right 0.3s ease;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+}
+
+.execution-panel.active {
+    right: 0;
+}
+
+.execution-panel-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--card-bg);
+}
+
+.execution-panel-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.execution-panel-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.execution-panel-close:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.execution-panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+.execution-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.execution-item {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.execution-item:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--text-secondary);
+}
+
+.execution-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.execution-item-id {
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.execution-item-time {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.execution-item-command {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.execution-item-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+    line-height: 1.4;
+}
+
+.execution-item-action {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.execution-item-btn {
+    background-color: var(--accent-blue);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.execution-item-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.execution-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.execution-empty i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.execution-empty p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+/* 执行任务模态框内容 */
+.execution-info {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.execution-info-item {
+    display: flex;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.execution-info-item:last-child {
+    margin-bottom: 0;
+}
+
+.execution-info-item .label {
+    font-weight: 600;
+    color: var(--text-secondary);
+    min-width: 100px;
+}
+
+.execution-info-item .value {
+    color: var(--text-primary);
+    flex: 1;
+    word-break: break-word;
+}
+
+.execution-context {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+}
+
+.context-header {
+    padding: 1rem;
+    background-color: rgba(255, 255, 255, 0.02);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    color: var(--text-primary);
+    transition: background-color 0.2s;
+}
+
+.context-header:hover {
+    background-color: var(--hover-bg);
+}
+
+.context-content {
+    padding: 1rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.context-content.collapsed {
+    display: none;
+}
+
+.context-content .context-item {
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.context-content .context-item:last-child {
+    margin-bottom: 0;
+}
+
+.context-content .context-item .label {
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.context-content .context-item pre {
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.75rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.execution-result-input {
+    margin-bottom: 1rem;
+}
+
+.execution-result-input label {
+    display: block;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.execution-result-input textarea {
+    width: 100%;
+    min-height: 150px;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.75rem;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.9rem;
+    resize: vertical;
+    transition: border-color 0.2s;
+}
+
+.execution-result-input textarea:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+}
+
+.execution-status {
+    margin-top: 1rem;
+}
+
+.execution-status label {
+    display: block;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.status-options {
+    display: flex;
+    gap: 1rem;
+}
+
+.status-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.status-option:hover {
+    background-color: var(--hover-bg);
+}
+
+.status-option input[type="radio"] {
+    cursor: pointer;
+}
+
+.status-option span {
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.execution-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+}
+
+/* Markdown内容样式 */
+.markdown-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+    color: var(--text-primary);
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.markdown-content h1 { font-size: 1.5rem; }
+.markdown-content h2 { font-size: 1.3rem; }
+.markdown-content h3 { font-size: 1.1rem; }
+.markdown-content h4 { font-size: 1rem; }
+.markdown-content h5 { font-size: 0.9rem; }
+.markdown-content h6 { font-size: 0.85rem; }
+
+.markdown-content p {
+    margin-bottom: 1rem;
+}
+
+.markdown-content p:last-child {
+    margin-bottom: 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    margin-bottom: 1rem;
+    padding-left: 2rem;
+}
+
+.markdown-content li {
+    margin-bottom: 0.5rem;
+}
+
+.markdown-content code {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 0.2rem 0.4rem;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9em;
+}
+
+.markdown-content pre {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin-bottom: 1rem;
+}
+
+.markdown-content pre code {
+    background: none;
+    border: none;
+    padding: 0;
+}
+
+.markdown-content blockquote {
+    border-left: 3px solid var(--accent-blue);
+    padding-left: 1rem;
+    margin: 1rem 0;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.markdown-content a {
+    color: var(--accent-blue);
+    text-decoration: none;
+}
+
+.markdown-content a:hover {
+    text-decoration: underline;
+}
+
+.markdown-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+}
+
+.markdown-content table th,
+.markdown-content table td {
+    border: 1px solid var(--border-color);
+    padding: 0.5rem;
+    text-align: left;
+}
+
+.markdown-content table th {
+    background-color: var(--card-bg);
+    font-weight: 600;
+}
+
+.markdown-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+}
+
+.markdown-content hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 1.5rem 0;
+}
+
+/* AI思考指示器动画 */
+.loading-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-right: 0.5rem;
+}
+
+.loading-dots span {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background-color: var(--text-secondary);
+    border-radius: 50%;
+    animation: loadingDots 1.4s infinite ease-in-out both;
+}
+
+.loading-dots span:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.loading-dots span:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes loadingDots {
+    0%, 80%, 100% {
+        opacity: 0.3;
+        transform: scale(0.8);
+    }
+    40% {
+        opacity: 1;
+        transform: scale(1.2);
+    }
 }
