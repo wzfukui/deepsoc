@@ -101,14 +101,34 @@ body.light-theme {
 
 /* Buttons */
 .light-theme .btn-primary {
-    background-color: var(--accent-blue);
-    border-color: var(--accent-blue);
-    color: white;
+    background-color: var(--accent-blue) !important;
+    border-color: var(--accent-blue) !important;
+    color: white !important;
+    font-weight: 600;
 }
 
 .light-theme .btn-primary:hover {
-    background-color: #0056b3;
-    border-color: #0056b3;
+    background-color: #0056b3 !important;
+    border-color: #0056b3 !important;
+    color: white !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 112, 243, 0.3);
+}
+
+.light-theme .btn-primary:active {
+    transform: translateY(0);
+}
+
+/* Other button variants for light theme */
+.light-theme .btn-secondary {
+    background-color: #6c757d !important;
+    border-color: #6c757d !important;
+    color: white !important;
+}
+
+.light-theme .btn-secondary:hover {
+    background-color: #5a6268 !important;
+    border-color: #545b62 !important;
 }
 
 /* Messages in warroom */

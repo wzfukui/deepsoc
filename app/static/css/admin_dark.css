@@ -273,14 +273,14 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Buttons */
-.btn-primary {
+body.dark-theme .btn-primary {
     background-color: var(--text-primary) !important;
     border-color: var(--text-primary) !important;
     color: #000 !important;
     font-weight: 600;
 }
 
-.btn-primary:hover {
+body.dark-theme .btn-primary:hover {
     background-color: #fff !important;
     border-color: #fff !important;
     color: #000 !important;
